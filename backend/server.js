@@ -1,6 +1,6 @@
-import { app } from './app.js';
-import { env } from './config/env.js';
-import { checkDatabaseConnection } from './config/database.js';
+import { app } from './api.js';
+import { env } from './src/config/env.js';
+import { checkDatabaseConnection } from './src/config/database.js';
 
 try {
   if (!env.demoMode && !env.jwtSecret) {

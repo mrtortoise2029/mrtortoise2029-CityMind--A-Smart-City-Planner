@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import * as controller from '../controllers/planningProjectController.js';
+import * as controller from '../controllers/planningController.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/authenticate.js';
 
