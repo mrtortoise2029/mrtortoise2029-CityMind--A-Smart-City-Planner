@@ -499,7 +499,7 @@ function ProjectUrbanGapAnalysis({
         <div className="analysis-actions">
           <label>
             Service standard
-            <select
+            <select 
               aria-label="Service standard"
               onChange={(event) =>
                 setBenchmarkScale(Number(event.target.value))
