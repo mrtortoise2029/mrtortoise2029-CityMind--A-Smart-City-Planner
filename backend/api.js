@@ -1,11 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { env } from './config/env.js';
-import cityRoutes from './routes/cityRoutes.js';
-import authRoutes from './routes/authRoutes.js';
-import analysisRoutes from './routes/analysisRoutes.js';
-import planningProjectRoutes from './routes/planningProjectRoutes.js';
+import { env } from './src/config/env.js';
+import cityRoutes from './src/routes/cityRoutes.js';
+import authRoutes from './src/routes/authRoutes.js';
+import analysisRoutes from './src/routes/analysisRoutes.js';
+import planningProjectRoutes from './src/routes/planningProjectRoutes.js';
 import {
   environmentRoutes,
   facilityRoutes,
@@ -13,9 +13,9 @@ import {
   recommendationRoutes,
   roadRoutes,
   wardRoutes,
-} from './routes/resourceRoutes.js';
-import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { sendSuccess } from './utils/apiResponse.js';
+} from './src/routes/resourceRoutes.js';
+import { errorHandler, notFoundHandler } from './src/middleware/errorHandler.js';
+import { sendSuccess } from './src/utils/apiResponse.js';
 
 export const app = express();
 app.disable('x-powered-by');
