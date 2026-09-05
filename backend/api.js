@@ -20,8 +20,20 @@ import { sendSuccess } from './src/utils/apiResponse.js';
 export const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
-const localOrigins = new Set([env.frontendUrl, 'http://localhost:5173', 'http://127.0.0.1:5173']);
-app.use(cors({ origin: (origin, callback) => callback(null, !origin || localOrigins.has(origin)) }));
+const configuredOrigins = new Set([env.frontendUrl]);
+function isAllowedOrigin(origin) {
+  if (!origin || configuredOrigins.has(origin)) return true;
+  if (env.nodeEnv === 'production') return false;
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+app.use(cors({
+  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+}));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (req, res) => sendSuccess(res, {

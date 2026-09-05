@@ -21,7 +21,13 @@ export function LoginScreen({ onAuthenticated }) {
       setAuthToken(result.token);
       onAuthenticated(result.user);
     } catch (error) {
-      setState({ loading: false, error: error.response?.data?.error?.message ?? 'Unable to authenticate' });
+      const message = error.response?.data?.error?.message
+        ?? (error.code === 'ECONNABORTED'
+          ? 'The CityMind API did not respond. Confirm the backend is running on port 5001.'
+          : error.request
+            ? 'Cannot reach the CityMind API. Start the backend and check the configured API URL.'
+            : 'Unable to authenticate');
+      setState({ loading: false, error: message });
     }
   };
 
