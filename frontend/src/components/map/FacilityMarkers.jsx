@@ -19,7 +19,7 @@ const getFacilityIcon = (type) => {
 
 export function FacilityMarkers({ facilities, layers, onSelectWard }) {
   return facilities
-    .filter((facility) => layers[facility.type])
+    .filter((facility) => layers.facilities && layers[facility.type])
     .map((facility) => (
       <Marker
         eventHandlers={{ click: () => onSelectWard(facility.ward_id) }}

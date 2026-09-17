@@ -40,6 +40,7 @@ export const getProjectGapAnalysis = (projectId, benchmarkScale = 1) => api.get(
 export const getProjectGrowthPrediction = (projectId) => api.get(`/planning-projects/${projectId}/growth-prediction`).then(({ data }) => data.data);
 export const getProjectRiskDetection = (projectId) => api.get(`/planning-projects/${projectId}/risk-detection`).then(({ data }) => data.data);
 export const getProjectReport = (projectId) => api.get(`/planning-projects/${projectId}/report`).then(({ data }) => data.data);
+export const getProjectDevelopmentFeasibility = (projectId) => api.get(`/planning-projects/${projectId}/development-feasibility`).then(({ data }) => data.data);
 export const getProjectBlockAnalysis = (projectId) => api.get(`/planning-projects/${projectId}/block-analysis`).then(({ data }) => data.data);
 export const simulateProjectBlockHealth = (projectId, input) => api.post(`/planning-projects/${projectId}/health-simulation`, input).then(({ data }) => data.data);
 export const getProjectValidation = (projectId) => api.get(`/planning-projects/${projectId}/validation`).then(({ data }) => data.data);
@@ -64,6 +65,9 @@ export const getCityHealthScores = (cityId) => api.get(`/analysis/city/${cityId}
 export const createRecommendations = (input) => api.post('/recommendations', input).then(({ data }) => data.data);
 export const createProjectRecommendations = (projectId, input) => api
   .post(`/planning-projects/${projectId}/recommendations`, input)
+  .then(({ data }) => data.data);
+export const getProjectRecommendations = (projectId) => api
+  .get(`/planning-projects/${projectId}/recommendations`)
   .then(({ data }) => data.data);
 export const updateProjectRecommendationStatus = (projectId, recommendationId, status) => api
   .patch(`/planning-projects/${projectId}/recommendations/${recommendationId}`, { status })

@@ -3,12 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import {
   acceptEvaluatedProjectLocation, createPlanningFeature, evaluateProjectLocation, getPlanningFeatures,
-  updatePlanningFeature,
+  getProjectDevelopmentFeasibility, getProjectGrowthPrediction, getProjectRecommendations,
+  getProjectRiskDetection, updatePlanningFeature,
 } from '../api/client.js';
 import { ProjectGISCanvas } from './ProjectGISCanvas.jsx';
 
 const mapEvents = vi.hoisted(() => ({ click: null, featureClick: null }));
 vi.mock('react-leaflet', () => ({
+  CircleMarker: ({ children }) => <div>{children}</div>,
   MapContainer: ({ center, children }) => <div data-center={JSON.stringify(center)} data-testid="planning-map">{children}</div>,
   Marker: ({ children, eventHandlers }) => { if (eventHandlers?.click) mapEvents.featureClick = eventHandlers.click; return <div>{children}</div>; },
   Polygon: ({ children, eventHandlers }) => { if (eventHandlers?.click) mapEvents.featureClick = eventHandlers.click; return <div>{children}</div>; },
@@ -24,7 +26,8 @@ vi.mock('./map/WardLayer.jsx', () => ({ WardLayer: ({ wards }) => <span>{wards.l
 vi.mock('../api/client.js', () => ({
   getPlanningFeatures: vi.fn(), createPlanningFeature: vi.fn(), deletePlanningFeature: vi.fn(),
   evaluateProjectLocation: vi.fn(), acceptEvaluatedProjectLocation: vi.fn(), getProjectValidation: vi.fn(),
-  updatePlanningFeature: vi.fn(),
+  getProjectDevelopmentFeasibility: vi.fn(), getProjectGrowthPrediction: vi.fn(),
+  getProjectRecommendations: vi.fn(), getProjectRiskDetection: vi.fn(), updatePlanningFeature: vi.fn(),
 }));
 
 const boundary = { type: 'Polygon', coordinates: [[[90.42, 23.785], [90.435, 23.785], [90.435, 23.797], [90.42, 23.797], [90.42, 23.785]]] };
@@ -48,6 +51,18 @@ beforeEach(() => {
     id: 1, planning_project_id: 1, feature_type: 'FACILITY_PROPOSAL', category: 'hospital',
     name: 'Proposed Hospital', geometry: { type: 'Point', coordinates: [90.428, 23.791] }, source: 'citymind',
   }]);
+  getProjectGrowthPrediction.mockResolvedValue({ planning_horizon: 20, projected_population: 85000, confidence: 'PLANNING_ASSUMPTION', scenarios: [{ year: 20, population: 85000 }] });
+  getProjectDevelopmentFeasibility.mockResolvedValue({ planning_readiness: { score: 68 }, site_overview: { infrastructure_gap_percent: 31, risk_level: 'MODERATE' } });
+  getProjectRecommendations.mockResolvedValue({ recommendations: [{
+    recommendation_id: 21, title: 'Develop healthcare capacity', project_type: 'HOSPITAL',
+    recommendation_score: 88, priority: 'HIGH',
+    candidate_location: { label: 'Saved Candidate Site', latitude: 23.792, longitude: 90.429 },
+  }] });
+  getProjectRiskDetection.mockResolvedValue({ risks: [{
+    risk_type: 'HEALTHCARE_COVERAGE', label: 'Insufficient healthcare coverage', severity: 'HIGH', score: 70,
+    confidence: 'ESTIMATED', data_source: 'Project gap analysis', data_year: null,
+    location: [{ id: 'risk-a', latitude: 23.791, longitude: 90.429, evidence: 'Nearest service exceeds the benchmark radius.' }],
+  }], unavailable_risks: [] });
   createPlanningFeature.mockResolvedValue({
     id: 2, planning_project_id: 1, feature_type: 'PLANNING_POINT', category: 'planning',
     name: 'Planning Point 2', geometry: { type: 'Point', coordinates: [90.429, 23.792] }, source: 'planner',
@@ -74,11 +89,23 @@ test('loads the boundary, centers the map, toggles layers, and displays existing
   expect(screen.getByTestId('planning-map')).toHaveAttribute('data-center', JSON.stringify([23.785, 90.42]));
   expect(screen.getByText('1 existing facilities loaded')).toBeInTheDocument();
   expect((await screen.findAllByText('Proposed Hospital')).length).toBeGreaterThan(0);
-  expect(screen.getByRole('button', { name: 'Planning Proposals' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Project Boundary' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Blocks' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Existing Roads' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Proposed Roads' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Drainage' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Recommendations' })).toHaveAttribute('aria-pressed', 'true');
   const hospitals = screen.getByRole('button', { name: 'Hospitals' });
-  expect(hospitals).toHaveAttribute('aria-pressed', 'false');
-  await user.click(hospitals);
   expect(hospitals).toHaveAttribute('aria-pressed', 'true');
+  await user.click(hospitals);
+  expect(hospitals).toHaveAttribute('aria-pressed', 'false');
+  const growthLayer = screen.getByRole('button', { name: 'Growth' });
+  expect(await screen.findByText('20-year growth scenario')).toBeInTheDocument();
+  expect(screen.getByText(/Saved Candidate Site/)).toBeInTheDocument();
+  expect(screen.getByText('68')).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Project planning stack' })).toHaveTextContent('Boundary');
+  const riskLayer = screen.getByRole('button', { name: 'Risk' });
+  expect(await screen.findByText(/Insufficient healthcare coverage · HIGH/)).toBeInTheDocument();
 });
 
 test('places a project-owned planning point and shows recommendation evidence', async () => {

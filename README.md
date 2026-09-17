@@ -204,6 +204,7 @@ GET    /api/planning-projects/:projectId/block-analysis
 GET    /api/planning-projects/:projectId/growth-prediction
 GET    /api/planning-projects/:projectId/risk-detection
 GET    /api/planning-projects/:projectId/report
+GET    /api/planning-projects/:projectId/development-feasibility
 POST   /api/planning-projects/:projectId/health-simulation
 GET    /api/planning-projects/:projectId/validation
 

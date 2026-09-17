@@ -20,6 +20,10 @@ export async function getGrowthPrediction(projectId, ownerUserId) {
   const referenceGrowthRate = growthInputs.length
     ? growthInputs.reduce((sum, input) => sum + Number(input.growth_rate), 0) / growthInputs.length
     : null;
-  return calculateGrowthPrediction({ project, referenceGrowthRate, referenceCount: growthInputs.length });
+  const referenceDataYears = [...new Set(growthInputs
+    .map((input) => Number(input.data_year ?? input.year))
+    .filter(Number.isFinite))].sort((first, second) => first - second);
+  return calculateGrowthPrediction({
+    project, referenceGrowthRate, referenceCount: growthInputs.length, referenceDataYears,
+  });
 }
-

@@ -11,6 +11,11 @@ const RISK_CONFIG = Object.freeze({
   COMMERCIAL: ['COMMERCIAL_ACCESS', 'Commercial-service access deficiency', 'Review mixed-use access as a planning option.'],
 });
 
+function riskSeverity(score) {
+  const severity = gapSeverity(score);
+  return severity === 'MODERATE' ? 'MEDIUM' : severity;
+}
+
 /** Risk score equals the documented deterministic category gap percentage. */
 export function detectRisksFromGapAnalysis(gapAnalysis) {
   const categories = gapAnalysis?.categories ?? [];
@@ -31,7 +36,7 @@ export function detectRisksFromGapAnalysis(gapAnalysis) {
       return {
         risk_type: riskType,
         label,
-        severity: gapSeverity(category.gap_percent),
+        severity: riskSeverity(category.gap_percent),
         score: category.gap_percent,
         score_basis: 'Infrastructure/service gap percentage (100 minus calculated coverage).',
         location: locations.length ? locations : null,
@@ -43,6 +48,8 @@ export function detectRisksFromGapAnalysis(gapAnalysis) {
           service_radius_km: category.service_radius_km,
         },
         data_source: 'Project gap analysis using saved project geometry and linked CityMind context records',
+        data_year: null,
+        data_year_status: 'DATA_UNAVAILABLE',
         confidence: 'ESTIMATED',
         evidence_supply_confidence: category.confidence?.existing_supply ?? 'ESTIMATED',
         recommendations: [recommendation],
@@ -52,7 +59,7 @@ export function detectRisksFromGapAnalysis(gapAnalysis) {
     ? Math.round(risks.reduce((sum, risk) => sum + risk.score, 0) / risks.length)
     : null;
   return {
-    overall_risk_level: overallScore === null ? 'DATA_UNAVAILABLE' : gapSeverity(overallScore),
+    overall_risk_level: overallScore === null ? 'DATA_UNAVAILABLE' : riskSeverity(overallScore),
     overall_risk_score: overallScore,
     risks,
     unavailable_risks: [
@@ -64,7 +71,7 @@ export function detectRisksFromGapAnalysis(gapAnalysis) {
     methodology: {
       model: 'deterministic-risk-1.0',
       overall_score: 'Arithmetic mean of available service-deficiency risk scores.',
-      severity_thresholds: { LOW: '0–24', MODERATE: '25–49', HIGH: '50–74', CRITICAL: '75–100' },
+      severity_thresholds: { LOW: '0–24', MEDIUM: '25–49', HIGH: '50–74', CRITICAL: '75–100' },
     },
   };
 }

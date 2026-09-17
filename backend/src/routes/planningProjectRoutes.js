@@ -142,6 +142,7 @@ routes.get('/:projectId/block-analysis', validate(projectParams), controller.get
 routes.get('/:projectId/growth-prediction', validate(projectParams), controller.getGrowthPrediction);
 routes.get('/:projectId/risk-detection', validate(projectParams), controller.getRiskDetection);
 routes.get('/:projectId/report', validate(projectParams), controller.getProjectReport);
+routes.get('/:projectId/development-feasibility', validate(projectParams), controller.getDevelopmentFeasibility);
 routes.post('/:projectId/health-simulation', validate(projectParams), validate(healthSimulationBody, 'body'), controller.simulateProjectBlockHealth);
 routes.get('/:projectId/validation', validate(projectParams), controller.validateProjectPlan);
 routes.get('/:projectId/planning-rules', validate(projectParams), validate(planningRulesQuery, 'query'), controller.getPlanningRules);

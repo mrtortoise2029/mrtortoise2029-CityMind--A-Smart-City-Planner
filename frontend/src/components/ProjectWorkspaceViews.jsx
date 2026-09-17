@@ -7,7 +7,7 @@ import {
 import { CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { geoJSONToPositions } from '../utils/projectGeometry.js';
 import { isPointInProjectContext } from '../utils/projectContext.js';
-import { getProjectReport, simulateProjectBudget } from '../api/client.js';
+import { getProjectFuturePlan, getProjectGrowthPrediction, getProjectReport, simulateProjectBudget } from '../api/client.js';
 
 const number = (value) => Number(value ?? 0).toLocaleString();
 const planningPopulation = (project) => project.project_type === 'EXISTING_AREA'
@@ -109,23 +109,35 @@ export function ProjectOverview({ dashboard, gapAnalysis, onNavigate, project, r
   );
 }
 
-function scenarioPopulation(project, year, growthRate) {
-  const horizon = Number(project.planning_horizon || 20);
-  if (project.project_type === 'NEW_DEVELOPMENT') {
-    return Math.round(Number(project.expected_population || 0) * Math.min(year / horizon, 1));
-  }
-  return Math.round(Number(project.current_population || 0) * ((1 + growthRate / 100) ** year));
-}
-
-export function FuturePlanningView({ dashboard, project }) {
-  const growthRates = dashboard.map.wards.map((ward) => Number(ward.growth_rate)).filter(Number.isFinite);
-  const growthRate = growthRates.length ? growthRates.reduce((total, value) => total + value, 0) / growthRates.length : 0;
-  const scenarios = [5, 10, 20, 30].map((year) => ({ year, population: scenarioPopulation(project, year, growthRate) }));
+export function FuturePlanningView({ project }) {
+  const [data, setData] = useState(null);
+  const [phases, setPhases] = useState([]);
+  const [state, setState] = useState({ loading: true, error: '' });
+  useEffect(() => {
+    let current = true;
+    Promise.allSettled([getProjectGrowthPrediction(project.id), getProjectFuturePlan(project.id)])
+      .then(([growthResult, futureResult]) => {
+        if (!current) return;
+        if (growthResult.status === 'rejected') {
+          setState({ loading: false, error: growthResult.reason?.response?.data?.error?.message ?? 'Future planning evidence is unavailable.' });
+          return;
+        }
+        setData(growthResult.value);
+        setPhases(futureResult.status === 'fulfilled' ? futureResult.value.phases ?? [] : []);
+        setState({ loading: false, error: '' });
+      });
+    return () => { current = false; };
+  }, [project.id]);
+  if (state.loading) return <div className="analysis-state"><span className="loader" /><h2>Loading future planning scenarios</h2><p>Reusing the deterministic project growth model.</p></div>;
+  if (state.error) return <div className="analysis-state error"><AlertTriangle /><h2>Future planning unavailable</h2><p>{state.error}</p></div>;
+  const scenarios = data.scenarios;
+  const maxPopulation = Math.max(...scenarios.map(({ population }) => population), 1);
   return (
     <article className="future-planning-view">
       <header><div><p className="eyebrow">Scenario planning</p><h2>Future Planning</h2><p>Explore transparent population-led demand snapshots without changing the saved project.</p></div><span className="simulation-label">SIMULATED</span></header>
-      <div className="scenario-grid">{scenarios.map((scenario) => <section key={scenario.year}><span>{scenario.year}-year scenario</span><strong>{number(scenario.population)}</strong><small>projected residents</small><div><i style={{ width: `${Math.min(100, (scenario.population / Math.max(...scenarios.map(({ population }) => population), 1)) * 100)}%` }} /></div><p>{project.project_type === 'NEW_DEVELOPMENT' ? 'Linear delivery toward the saved expected population.' : `${growthRate.toFixed(1)}% mean annual growth from available reference zones.`}</p></section>)}</div>
-      <aside><BarChart3 size={18} /><div><strong>Planning assumption</strong><p>These scenarios are simulations for comparison. They are not forecasts and are not stored as approved project decisions.</p></div></aside>
+      <div className="future-current"><span>Current / baseline</span><strong>{data.current.population ? number(data.current.population) : 'Data unavailable'}</strong><small>{data.current.data_type.replaceAll('_', ' ')}</small></div>
+      <div className="scenario-grid">{scenarios.map((scenario) => { const phase = phases.find(({ start_year: start, end_year: end }) => scenario.year >= start && scenario.year <= end); return <section key={scenario.year}><span>{scenario.year}-year scenario</span><strong>{number(scenario.population)}</strong><small>scenario-based residents · {scenario.data_type}</small><div><i style={{ width: `${Math.min(100, (scenario.population / maxPopulation) * 100)}%` }} /></div><p>{data.assumptions[0]}</p>{phase && <b>{phase.name}</b>}</section>; })}</div>
+      <aside><BarChart3 size={18} /><div><strong>Planning assumption</strong><p>These scenarios reuse Growth Prediction backend results and stop at the saved {data.planning_horizon}-year horizon. They are not official forecasts or approved project decisions.</p></div></aside>
     </article>
   );
 }
@@ -168,6 +180,7 @@ export function ReportsWorkspaceView({ onExport, onPrint, project }) {
   }, [project.id]);
   const readiness = report ? [
     ['Project information', FileText, report.project_overview],
+    ['Development feasibility', Target, report.development_feasibility],
     ['Boundary & GIS', Layers3, report.gis_assets],
     ['Gap analysis', Route, report.gap_analysis],
     ['Recommendations', Sparkles, report.recommendations],
@@ -179,6 +192,7 @@ export function ReportsWorkspaceView({ onExport, onPrint, project }) {
     ['AI explanation', Sparkles, report.ai_summary],
   ] : [];
   const overview = report?.project_overview?.data;
+  const feasibility = report?.development_feasibility?.data;
   const growth = report?.growth_prediction?.data;
   const risks = report?.risk_detection?.data;
   const gaps = report?.gap_analysis?.data;
@@ -190,14 +204,15 @@ export function ReportsWorkspaceView({ onExport, onPrint, project }) {
       <header><div><p className="eyebrow">Project evidence package</p><h2>Reports</h2><p>Project-specific facts, provenance, deterministic analysis, and clearly labeled scenarios.</p></div><div><button disabled={!report} onClick={onExport} type="button"><FileJson size={14} />Export Report</button><button className="primary" disabled={!report} onClick={onPrint} type="button"><Printer size={14} />Print View</button></div></header>
       {state.loading && <div className="report-loading"><span className="loader" /><p>Aggregating project evidence…</p></div>}
       {state.error && <div className="report-error"><AlertTriangle /><p>{state.error}</p></div>}
-      {report && <><section className="report-cover"><span>CityMind planning report</span><h3>{project.name}</h3><p>{String(project.project_type).replaceAll('_', ' ')} · {project.planning_horizon}-year horizon · Generated {new Date(report.generated_at).toLocaleDateString()}</p><small>{report.data_notice}</small></section><div className="report-readiness-grid">{readiness.map(([label, Icon, section]) => <section key={label}><Icon size={19} /><div><span>{label}</span><strong className={section.status === 'READY' ? 'ready' : 'unavailable'}>{section.status === 'READY' ? 'Ready' : 'Unavailable'}</strong><small>{section.status === 'READY' ? 'Included in this project report' : section.reason}</small></div></section>)}</div><div className="print-report-body">
+      {report && <><section className="report-cover"><span>Preliminary Urban Development Assessment</span><h3>{project.name}</h3><p>{String(project.project_type).replaceAll('_', ' ')} · {project.planning_horizon}-year horizon · Generated {new Date(report.generated_at).toLocaleDateString()}</p><small>{report.data_notice}</small><small>{report.assessment_notice}</small></section><div className="report-readiness-grid">{readiness.map(([label, Icon, section]) => <section key={label}><Icon size={19} /><div><span>{label}</span><strong className={section?.status === 'READY' ? 'ready' : 'unavailable'}>{section?.status === 'READY' ? 'Ready' : 'Unavailable'}</strong><small>{section?.status === 'READY' ? 'Included in this project report' : section?.reason ?? 'Not included in this report version.'}</small></div></section>)}</div><div className="print-report-body">
         <section><h3>1. Project Overview</h3><dl className="report-facts"><div><dt>Project type</dt><dd>{overview.project_type.replaceAll('_', ' ')}</dd></div><div><dt>Area</dt><dd>{number(overview.area_acres)} acres</dd></div><div><dt>Planning horizon</dt><dd>{overview.planning_horizon} years</dd></div><div><dt>Population</dt><dd>{number(overview.population.current ?? overview.population.expected)} · {overview.population.current ? overview.population.current_data_type : overview.population.expected_data_type}</dd></div></dl><p>{overview.description}</p></section>
-        <section><h3>2. Growth Prediction</h3>{growth ? <><p>{growth.projection_label} · {growth.confidence}. This is not an official forecast.</p><table><thead><tr><th>Horizon</th><th>Population</th><th>Households</th><th>Label</th></tr></thead><tbody>{growth.scenarios.map((scenario) => <tr key={scenario.year}><td>{scenario.year} years</td><td>{number(scenario.population)}</td><td>{number(scenario.households)}</td><td>{scenario.data_type}</td></tr>)}</tbody></table></> : <p>Data unavailable.</p>}</section>
-        <section><h3>3. Risk Detection</h3>{risks?.risks?.length ? <table><thead><tr><th>Risk</th><th>Severity</th><th>Score</th><th>Evidence</th></tr></thead><tbody>{risks.risks.map((risk) => <tr key={risk.risk_type}><td>{risk.label}</td><td>{risk.severity}</td><td>{risk.score}/100</td><td>{risk.evidence.missing} {risk.evidence.unit} missing</td></tr>)}</tbody></table> : <p>No supported risk score is available.</p>}<p>{risks?.unavailable_risks?.map(({ risk_type }) => risk_type.replaceAll('_', ' ')).join(', ')}: data unavailable.</p></section>
-        <section><h3>4. Infrastructure Gaps & Recommendations</h3>{gaps ? <table><thead><tr><th>Priority</th><th>Category</th><th>Gap</th><th>Missing</th></tr></thead><tbody>{gaps.priority_areas.slice(0, 8).map((item) => <tr key={item.key}><td>{item.rank}</td><td>{item.category}</td><td>{item.gap_percent}%</td><td>{item.missing} {item.unit}</td></tr>)}</tbody></table> : <p>Gap analysis unavailable.</p>}{recommendations.length ? <ol>{recommendations.slice(0, 8).map((item) => <li key={item.recommendation_id}>{item.title} — score {item.recommendation_score}/100 ({item.priority})</li>)}</ol> : <p>No project recommendations have been generated.</p>}</section>
-        <section><h3>5. Development Phases & Existing Budget Information</h3>{phases.length ? <ol>{phases.map((phase) => <li key={phase.id}>{phase.name}: years {phase.start_year}–{phase.end_year} ({phase.status})</li>)}</ol> : <p>No development phases are saved.</p>}{budgets.length ? <p>{budgets.length} existing saved Budget Optimizer scenario{budgets.length === 1 ? '' : 's'} included. No budget calculation was performed by this report.</p> : <p>No existing saved Budget Optimizer result is available.</p>}</section>
-        <section><h3>6. Assumptions & Data Provenance</h3>{growth?.assumptions?.map((item) => <p key={item}>{item}</p>)}{growth?.data_sources?.map((item) => <p key={item.dataset}><b>{item.dataset}:</b> {item.source ?? 'Data unavailable'} ({item.data_type})</p>)}</section>
-        <section><h3>7. AI Explanation</h3><p>{report.ai_summary.data?.text ?? report.ai_summary.reason}</p></section>
+        <section><h3>2. Development Feasibility</h3>{feasibility ? <><dl className="report-facts"><div><dt>Planning readiness</dt><dd>{feasibility.planning_readiness.score == null ? 'Data unavailable' : `${feasibility.planning_readiness.score}/100`}</dd></div><div><dt>Readiness band</dt><dd>{String(feasibility.planning_readiness.band).replaceAll('_', ' ')}</dd></div><div><dt>Infrastructure gap</dt><dd>{feasibility.site_overview.infrastructure_gap_percent == null ? 'Data unavailable' : `${feasibility.site_overview.infrastructure_gap_percent}%`}</dd></div><div><dt>Available-evidence risk</dt><dd>{String(feasibility.site_overview.risk_level).replaceAll('_', ' ')}</dd></div></dl><ul>{feasibility.findings.map((finding) => <li key={`${finding.type}-${finding.title}`}><b>{finding.type}:</b> {finding.title} — {finding.detail}</li>)}</ul><p>{feasibility.decision_notice}</p></> : <p>Development feasibility unavailable.</p>}</section>
+        <section><h3>3. Growth Prediction</h3>{growth ? <><p>{growth.projection_label} · {growth.confidence}. This is not an official forecast.</p><table><thead><tr><th>Horizon</th><th>Population</th><th>Households</th><th>Label</th></tr></thead><tbody>{growth.scenarios.map((scenario) => <tr key={scenario.year}><td>{scenario.year} years</td><td>{number(scenario.population)}</td><td>{number(scenario.households)}</td><td>{scenario.data_type}</td></tr>)}</tbody></table></> : <p>Data unavailable.</p>}</section>
+        <section><h3>4. Risk Detection</h3>{risks?.risks?.length ? <table><thead><tr><th>Risk</th><th>Severity</th><th>Score</th><th>Evidence</th></tr></thead><tbody>{risks.risks.map((risk) => <tr key={risk.risk_type}><td>{risk.label}</td><td>{risk.severity}</td><td>{risk.score}/100</td><td>{risk.evidence.missing} {risk.evidence.unit} missing</td></tr>)}</tbody></table> : <p>No supported risk score is available.</p>}<p>{risks?.unavailable_risks?.map(({ risk_type }) => risk_type.replaceAll('_', ' ')).join(', ')}: data unavailable.</p></section>
+        <section><h3>5. Infrastructure Gaps & Recommendations</h3>{gaps ? <table><thead><tr><th>Priority</th><th>Category</th><th>Gap</th><th>Missing</th></tr></thead><tbody>{gaps.priority_areas.slice(0, 8).map((item) => <tr key={item.key}><td>{item.rank}</td><td>{item.category}</td><td>{item.gap_percent}%</td><td>{item.missing} {item.unit}</td></tr>)}</tbody></table> : <p>Gap analysis unavailable.</p>}{recommendations.length ? <ol>{recommendations.slice(0, 8).map((item) => <li key={item.recommendation_id}>{item.title} — score {item.recommendation_score}/100 ({item.priority})</li>)}</ol> : <p>No project recommendations have been generated.</p>}</section>
+        <section><h3>6. Development Phases & Existing Budget Information</h3>{phases.length ? <ol>{phases.map((phase) => <li key={phase.id}>{phase.name}: years {phase.start_year}–{phase.end_year} ({phase.status})</li>)}</ol> : <p>No development phases are saved.</p>}{budgets.length ? <p>{budgets.length} existing saved Budget Optimizer scenario{budgets.length === 1 ? '' : 's'} included. No budget calculation was performed by this report.</p> : <p>No existing saved Budget Optimizer result is available.</p>}</section>
+        <section><h3>7. Assumptions & Data Provenance</h3>{growth?.assumptions?.map((item) => <p key={item}>{item}</p>)}{growth?.data_sources?.map((item) => <p key={item.dataset}><b>{item.dataset}:</b> {item.source ?? 'Data unavailable'} ({item.data_type})</p>)}</section>
+        <section><h3>8. AI Explanation</h3><p>{report.ai_summary.data?.text ?? report.ai_summary.reason}</p></section>
       </div></>}
     </article>
   );

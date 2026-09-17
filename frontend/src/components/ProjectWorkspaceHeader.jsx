@@ -4,8 +4,8 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  ['overview', PieChart, 'Overview'],
-  ['gis', Map, 'GIS Planning'],
+  ['gis', Map, 'Site Intelligence Map'],
+  ['overview', PieChart, 'Feasibility'],
   ['blocks', MapPinned, 'Blocks'],
   ['roads', Route, 'Road Network'],
   ['landuse', Layers3, 'Land Use'],
@@ -30,7 +30,7 @@ export function ProjectWorkspaceHeader({ active, onBack, onEdit, onExport, onLog
         <div className="workspace-header-main">
           <button className="workspace-back" onClick={onBack} type="button">← Projects</button>
           <div className="workspace-project-identity">
-            <p>Active planning project</p>
+            <p>Active development project</p>
             <h1>{project.name}</h1>
             <div>
               <span><MapPinned size={13} />{projectTypeLabel(project.project_type)}</span>
@@ -46,7 +46,7 @@ export function ProjectWorkspaceHeader({ active, onBack, onEdit, onExport, onLog
           </div>
         </div>
       </header>
-      <nav aria-label="Planning workspace" className="workspace-navigation">
+      <nav aria-label="Development workspace" className="workspace-navigation">
         {navigation.map(([id, Icon, label]) => (
           <button aria-current={active === id ? 'page' : undefined} className={active === id ? 'active' : ''} key={id} onClick={() => onNavigate(id)} type="button">
             <Icon size={15} />{label}

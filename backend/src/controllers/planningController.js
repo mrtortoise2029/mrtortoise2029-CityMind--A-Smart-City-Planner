@@ -9,6 +9,7 @@ import * as projectDeliveryService from '../services/projectDeliveryService.js';
 import * as projectGrowthService from '../services/projectGrowthService.js';
 import * as projectRiskService from '../services/projectRiskService.js';
 import * as projectReportService from '../services/projectReportService.js';
+import * as projectFeasibilityService from '../services/projectFeasibilityService.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 
 export async function listPlanningProjects(req, res, next) {
@@ -165,6 +166,11 @@ export async function getRiskDetection(req, res, next) {
 
 export async function getProjectReport(req, res, next) {
   try { sendSuccess(res, await projectReportService.getProjectReport(req.validated.params.projectId, req.user.id)); }
+  catch (error) { next(error); }
+}
+
+export async function getDevelopmentFeasibility(req, res, next) {
+  try { sendSuccess(res, await projectFeasibilityService.getDevelopmentFeasibility(req.validated.params.projectId, req.user.id)); }
   catch (error) { next(error); }
 }
 
