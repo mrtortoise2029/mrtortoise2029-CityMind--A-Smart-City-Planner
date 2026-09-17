@@ -7,6 +7,7 @@ import * as projectRiskService from './projectRiskService.js';
 import * as projectDeliveryService from './projectDeliveryService.js';
 import * as recommendationService from './recommendationService.js';
 import { explainProjectReport } from './geminiService.js';
+import * as projectFeasibilityService from './projectFeasibilityService.js';
 import { httpError } from '../utils/httpError.js';
 
 const unavailable = (reason) => ({ status: 'UNAVAILABLE', reason });
@@ -26,8 +27,9 @@ export async function getProjectReport(projectId, ownerUserId) {
     projectRiskService.getRiskDetection(projectId, ownerUserId),
     projectDeliveryService.getFuturePlan(projectId, ownerUserId),
     projectDeliveryService.listBudgets(projectId, ownerUserId),
+    projectFeasibilityService.getDevelopmentFeasibility(projectId, ownerUserId),
   ]);
-  const [features, gaps, health, recommendations, growth, risks, future, budgets] = results.map(valueOrUnavailable);
+  const [features, gaps, health, recommendations, growth, risks, future, budgets, feasibility] = results.map(valueOrUnavailable);
   const featureData = features.data ?? [];
   const assetCounts = featureData.reduce((counts, feature) => ({
     ...counts, [feature.feature_type]: (counts[feature.feature_type] ?? 0) + 1,
@@ -44,7 +46,7 @@ export async function getProjectReport(projectId, ownerUserId) {
   }).catch(() => null);
   return {
     report_version: '1.0', generated_at: new Date().toISOString(), project_id: project.id,
-    title: `${project.name} — CityMind Planning Report`,
+    title: `${project.name} — Preliminary Urban Development Assessment`,
     branding: 'CityMind – AI Urban Planning Decision Support System',
     project_overview: { status: 'READY', data: {
       id: project.id, name: project.name, description: project.description,
@@ -63,6 +65,7 @@ export async function getProjectReport(projectId, ownerUserId) {
     recommendations: recommendations.data?.recommendations?.length
       ? recommendations : unavailable('No project recommendations have been generated.'),
     growth_prediction: growth, risk_detection: risks, future_planning: future,
+    development_feasibility: feasibility,
     budget_information: savedBudgets.length
       ? { status: 'READY', data: savedBudgets, notice: 'Existing saved Budget Optimizer output; no budget calculation was performed for this report.' }
       : unavailable('No existing saved Budget Optimizer result is available.'),
@@ -70,5 +73,6 @@ export async function getProjectReport(projectId, ownerUserId) {
       ? { status: 'READY', data: { text: aiSummary, role: 'EXPLANATION_ONLY' } }
       : unavailable('Gemini is not configured or could not provide an explanation. Deterministic results remain available.'),
     data_notice: 'Observed, estimated, projected, simulated, and planner-defined values retain their labels. Simulations are not official forecasts or mandatory decisions.',
+    assessment_notice: 'CityMind provides preliminary decision-support analysis. Professional and regulatory verification is required; this report does not grant legal, regulatory, feasibility, or development approval.',
   };
 }

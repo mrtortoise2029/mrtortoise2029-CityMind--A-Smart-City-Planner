@@ -1,11 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, test, vi } from 'vitest';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { ProjectWorkspaceHeader } from './ProjectWorkspaceHeader.jsx';
 import { BudgetWorkspaceView, FuturePlanningView, ProjectMetrics, ProjectOverview, ReportsWorkspaceView } from './ProjectWorkspaceViews.jsx';
-import { getProjectReport, simulateProjectBudget } from '../api/client.js';
+import { getProjectFuturePlan, getProjectGrowthPrediction, getProjectReport, simulateProjectBudget } from '../api/client.js';
 
-vi.mock('../api/client.js', () => ({ getProjectReport: vi.fn(), simulateProjectBudget: vi.fn() }));
+vi.mock('../api/client.js', () => ({
+  getProjectFuturePlan: vi.fn(), getProjectGrowthPrediction: vi.fn(),
+  getProjectReport: vi.fn(), simulateProjectBudget: vi.fn(),
+}));
 
 vi.mock('react-leaflet', () => ({
   CircleMarker: ({ children }) => <>{children}</>,
@@ -40,13 +43,26 @@ const gapAnalysis = {
   priority_areas: [{ rank: 1, key: 'hospital', category: 'Healthcare', gap_percent: 80 }],
 };
 
+beforeEach(() => {
+  getProjectGrowthPrediction.mockResolvedValue({
+    planning_horizon: 20, current: { population: null, data_type: 'DATA_UNAVAILABLE' },
+    scenarios: [
+      { year: 5, population: 21250, data_type: 'SIMULATED' },
+      { year: 10, population: 42500, data_type: 'SIMULATED' },
+      { year: 20, population: 85000, data_type: 'SIMULATED' },
+    ],
+    assumptions: ['Linear development scenario toward planner-defined population.'],
+  });
+  getProjectFuturePlan.mockResolvedValue({ phases: [] });
+});
+
 test('workspace header exposes all planning areas and actions', async () => {
   const user = userEvent.setup();
   const onNavigate = vi.fn();
   render(<ProjectWorkspaceHeader active="overview" onBack={vi.fn()} onEdit={vi.fn()} onExport={vi.fn()} onNavigate={onNavigate} project={project} />);
   expect(screen.getByRole('heading', { name: project.name })).toBeInTheDocument();
   expect(screen.getByText('500 acres')).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'GIS Planning' }));
+  await user.click(screen.getByRole('button', { name: 'Site Intelligence Map' }));
   expect(onNavigate).toHaveBeenCalledWith('gis');
   expect(screen.getByRole('button', { name: 'Reports' })).toBeInTheDocument();
 });
@@ -73,13 +89,14 @@ test('existing-area metrics use measured current population instead of the futur
   expect(populationCard).not.toHaveTextContent('58,000');
 });
 
-test('future planning labels calculated scenarios as simulations', () => {
+test('future planning reuses backend growth scenarios and stops at the project horizon', async () => {
   render(<FuturePlanningView dashboard={dashboard} project={project} />);
-  expect(screen.getByText('5-year scenario')).toBeInTheDocument();
-  expect(screen.getByText('30-year scenario')).toBeInTheDocument();
-  expect(screen.getAllByText('SIMULATED')).toHaveLength(1);
-  expect(screen.getAllByText('85,000')).toHaveLength(2);
-  expect(screen.getByText(/not forecasts/i)).toBeInTheDocument();
+  expect(await screen.findByText('5-year scenario')).toBeInTheDocument();
+  expect(screen.queryByText('30-year scenario')).not.toBeInTheDocument();
+  expect(getProjectGrowthPrediction).toHaveBeenCalledWith(1);
+  expect(screen.getAllByText(/SIMULATED/).length).toBeGreaterThan(0);
+  expect(screen.getByText('85,000')).toBeInTheDocument();
+  expect(screen.getByText(/not official forecasts/i)).toBeInTheDocument();
 });
 
 test('budget workspace runs and labels a saved planning-assumption scenario', async () => {
@@ -102,6 +119,7 @@ test('report view prints ready evidence and keeps missing budget data unavailabl
   getProjectReport.mockResolvedValue({
     generated_at: '2026-09-17T00:00:00.000Z', data_notice: 'Simulations are not official forecasts.',
     project_overview: { status: 'READY', data: { ...project, area_acres: 500, population: { expected: 85000, expected_data_type: 'PLANNER_DEFINED' } } },
+    development_feasibility: { status: 'READY', data: { planning_readiness: { score: 68, band: 'PROMISING_FOR_FURTHER_INVESTIGATION' }, site_overview: { infrastructure_gap_percent: 31, risk_level: 'MODERATE' }, findings: [{ type: 'WARNING', title: 'Healthcare requires investigation', detail: 'Coverage evidence is incomplete.' }], decision_notice: 'Professional verification is required.' } },
     gis_assets: { status: 'READY', data: { counts: {} } },
     gap_analysis: { status: 'READY', data: { priority_areas: [] } },
     urban_health: { status: 'UNAVAILABLE', reason: 'No blocks available.' },
@@ -114,7 +132,9 @@ test('report view prints ready evidence and keeps missing budget data unavailabl
   });
   const user = userEvent.setup();
   render(<ReportsWorkspaceView onExport={vi.fn()} onPrint={onPrint} project={project} />);
-  expect(await screen.findByText('CityMind planning report')).toBeInTheDocument();
+  expect(await screen.findByText('Preliminary Urban Development Assessment')).toBeInTheDocument();
+  expect(screen.getByText('Development feasibility').closest('section')).toHaveTextContent('Ready');
+  expect(screen.getByText('68/100')).toBeInTheDocument();
   expect(screen.getByText('Existing budget result').closest('section')).toHaveTextContent('Unavailable');
   await user.click(screen.getByRole('button', { name: 'Print View' }));
   expect(onPrint).toHaveBeenCalledOnce();

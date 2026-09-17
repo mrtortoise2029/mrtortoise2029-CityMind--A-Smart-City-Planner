@@ -34,22 +34,22 @@ export function LoginScreen({ onAuthenticated }) {
   return (
     <main className="auth-shell">
       <section className="auth-product-panel">
-        <div className="brand"><span className="brand-mark"><Building2 size={20} /></span><div><strong>CITYMIND</strong><small>Urban Planning Intelligence</small></div></div>
-        <div><p className="eyebrow">Project-based planning platform</p><h1>Plan development areas with spatial evidence.</h1><p>Define boundaries, organize land use, analyze service gaps, and compare transparent planning options in one professional workspace.</p></div>
-        <div className="auth-capabilities"><span><MapPinned size={15} />Project GIS canvas</span><span><LockKeyhole size={15} />Private project ownership</span></div>
+        <div className="brand"><span className="brand-mark"><Building2 size={20} /></span><div><strong>CITYMIND</strong><small>Development Feasibility Intelligence</small></div></div>
+        <div><p className="eyebrow">For real-estate and land development teams</p><h1>Decide whether land is worth developing.</h1><p>Define a site, test development capacity, identify infrastructure gaps, and produce a transparent preliminary assessment for management and investors.</p></div>
+        <div className="auth-capabilities"><span><MapPinned size={15} />Site feasibility & GIS</span><span><LockKeyhole size={15} />Private development portfolio</span></div>
       </section>
       <section className="auth-form-panel">
         <form onSubmit={submit}>
           <span className="auth-icon"><UserRound size={20} /></span>
-          <p className="eyebrow">Planner access</p>
-          <h2>{mode === 'login' ? 'Sign in to CityMind' : 'Create planner account'}</h2>
-          <p>Access only the planning projects owned by your account.</p>
+          <p className="eyebrow">Development team access</p>
+          <h2>{mode === 'login' ? 'Sign in to CityMind' : 'Create developer account'}</h2>
+          <p>Access the development projects owned by your account.</p>
           {mode === 'register' && <label><span>Full name</span><input autoComplete="name" onChange={(event) => setForm({ ...form, name: event.target.value })} required value={form.name} /></label>}
           <label><span>Email</span><input autoComplete="email" onChange={(event) => setForm({ ...form, email: event.target.value })} required type="email" value={form.email} /></label>
           <label><span>Password</span><input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} onChange={(event) => setForm({ ...form, password: event.target.value })} required type="password" value={form.password} /></label>
           {state.error && <p className="auth-error">{state.error}</p>}
           <button className="auth-submit" disabled={state.loading} type="submit">{state.loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
-          <button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setState({ loading: false, error: '' }); }} type="button">{mode === 'login' ? 'New planner? Create an account' : 'Already registered? Sign in'}</button>
+          <button className="auth-switch" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setState({ loading: false, error: '' }); }} type="button">{mode === 'login' ? 'New development team? Create an account' : 'Already registered? Sign in'}</button>
           {import.meta.env.DEV && <small className="demo-credential">Demo access is pre-filled for local development.</small>}
         </form>
       </section>

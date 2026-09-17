@@ -26,7 +26,7 @@ function demandFor(population, households, areaSqKm) {
  * planner-defined horizon population; other projects compound a recorded
  * contextual annual growth rate. Neither path is an official forecast.
  */
-export function calculateGrowthPrediction({ project, referenceGrowthRate = null, referenceCount = 0 }) {
+export function calculateGrowthPrediction({ project, referenceGrowthRate = null, referenceCount = 0, referenceDataYears = [] }) {
   const projectType = project.project_type;
   const horizon = Math.max(1, numeric(project.planning_horizon));
   const isNewDevelopment = projectType === 'NEW_DEVELOPMENT';
@@ -81,6 +81,13 @@ export function calculateGrowthPrediction({ project, referenceGrowthRate = null,
     planning_horizon: horizon,
     baseline_population: baselinePopulation,
     baseline_data_type: hasObservedPopulation ? 'OBSERVED' : baselinePopulation ? 'PLANNER_DEFINED' : 'NOT_AVAILABLE',
+    current: {
+      year: 0,
+      population: baselinePopulation || null,
+      households: baselineHouseholds || null,
+      demand: baselinePopulation ? demandFor(baselinePopulation, baselineHouseholds || null, areaSqKm) : null,
+      data_type: hasObservedPopulation ? 'OBSERVED' : baselinePopulation ? 'PLANNER_DEFINED' : 'DATA_UNAVAILABLE',
+    },
     projected_population: scenarios.at(-1)?.population ?? baselinePopulation,
     annual_growth_rate: isNewDevelopment ? null : growthAvailable ? round(annualGrowthRate, 2) : null,
     projection_label: 'Scenario-based projection',
@@ -91,13 +98,13 @@ export function calculateGrowthPrediction({ project, referenceGrowthRate = null,
       : growthAvailable
         ? [
           { dataset: 'Baseline population', source: hasObservedPopulation ? 'Planning project current population' : 'Planner-defined project population', data_type: hasObservedPopulation ? 'OBSERVED' : 'PLANNER_DEFINED' },
-          { dataset: 'Contextual population growth', source: 'CityMind population records linked to contextual project wards', records: referenceCount, data_type: 'REFERENCE_DATA' },
+          { dataset: 'Contextual population growth', source: 'CityMind population records linked to contextual project wards', records: referenceCount, data_year: referenceDataYears.length === 1 ? referenceDataYears[0] : null, available_years: referenceDataYears, data_type: 'REFERENCE_DATA' },
         ]
         : [
           { dataset: 'Baseline population', source: hasObservedPopulation ? 'Planning project current population' : 'Planner-defined project population', data_type: hasObservedPopulation ? 'OBSERVED' : baselinePopulation ? 'PLANNER_DEFINED' : 'DATA_UNAVAILABLE' },
           { dataset: 'Contextual population growth', source: null, data_type: 'DATA_UNAVAILABLE' },
         ],
     confidence: isNewDevelopment ? 'PLANNING_ASSUMPTION' : growthAvailable ? 'ESTIMATED' : 'LOW',
-    methodology: { model: 'deterministic-growth-1.0', method, official_forecast: false },
+    methodology: { model: 'deterministic-growth-1.1', method, official_forecast: false },
   };
 }

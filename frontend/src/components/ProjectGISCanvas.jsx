@@ -36,7 +36,11 @@ import {
   createPlanningFeature,
   deletePlanningFeature,
   evaluateProjectLocation,
+  getProjectDevelopmentFeasibility,
   getPlanningFeatures,
+  getProjectGrowthPrediction,
+  getProjectRecommendations,
+  getProjectRiskDetection,
   getProjectValidation,
   updatePlanningFeature,
 } from "../api/client.js";
@@ -53,40 +57,58 @@ import {
 } from "../utils/projectContext.js";
 
 const existingLayerConfiguration = [
+  ["facilities", "Facilities"],
   ["hospital", "Hospitals"],
   ["school", "Schools"],
   ["park", "Parks"],
-  ["roads", "Roads"],
+  ["other", "Other Facilities"],
+  ["roads", "Existing Roads"],
   ["water", "Water bodies"],
-  ["other", "Existing facilities"],
-  ["population", "Population"],
-  ["environment", "Environment"],
+  ["environment", "Environmental Context"],
 ];
 const projectLayerConfiguration = [
   ["projectBoundary", "Project Boundary"],
+  ["blocks", "Blocks"],
+  ["landUse", "Land Use"],
   ["residential", "Residential Zones"],
-  ["commercial", "Commercial Zones"],
+  ["commercial", "Commercial"],
   ["education", "Education Zones"],
   ["healthcare", "Healthcare Zones"],
-  ["green", "Green Zones"],
-  ["projectRoads", "Road Network"],
+  ["green", "Parks & Green Space"],
+  ["projectRoads", "Proposed Roads"],
+  ["drainage", "Drainage"],
+  ["projectFacilities", "Project Facilities"],
   ["future", "Future Development Areas"],
-  ["blocks", "Development Blocks"],
   ["gates", "Project Gates"],
-  ["proposals", "Planning Proposals"],
-  ["coverageGaps", "Coverage Gaps"],
+  ["proposals", "Other Proposals"],
+  ["coverageGaps", "Infrastructure Gaps"],
   ["serviceAreas", "Service Radius"],
-  ["populationHeat", "Population Intensity"],
+  ["populationHeat", "Population"],
+  ["growthDemand", "Growth"],
+  ["riskIntelligence", "Risk"],
+  ["recommendations", "Recommendations"],
 ];
 const initialLayers = {
   ...Object.fromEntries(
     existingLayerConfiguration.map(([key]) => [key, false]),
   ),
   ...Object.fromEntries(projectLayerConfiguration.map(([key]) => [key, true])),
-  coverageGaps: false,
+  facilities: true,
+  hospital: true,
+  school: true,
+  park: true,
+  other: true,
+  roads: true,
+  landUse: true,
+  drainage: true,
+  projectFacilities: true,
+  coverageGaps: true,
   proposals: true,
   serviceAreas: false,
-  populationHeat: false,
+  populationHeat: true,
+  growthDemand: true,
+  riskIntelligence: true,
+  recommendations: true,
 };
 const zoneLayers = {
   RESIDENTIAL_ZONE: "residential",
@@ -104,9 +126,23 @@ const zoneLayers = {
   SECONDARY_GATE: "gates",
   RECREATION_ZONE: "green",
   UTILITY_ZONE: "future",
-  DRAINAGE_CORRIDOR: "projectRoads",
+  DRAINAGE_CORRIDOR: "drainage",
   WATER_BODY: "future",
+  FACILITY_PROPOSAL: "projectFacilities",
+  COMMUNITY_FACILITY: "projectFacilities",
 };
+const landUseFeatureTypes = new Set([
+  "RESIDENTIAL_ZONE", "COMMERCIAL_ZONE", "EDUCATION_ZONE", "HEALTHCARE_ZONE",
+  "GREEN_ZONE", "RECREATION_ZONE", "UTILITY_ZONE", "FUTURE_DEVELOPMENT_AREA", "WATER_BODY",
+]);
+const layerGroups = [
+  ["Site structure", ["projectBoundary", "blocks", "landUse", "residential", "commercial", "education", "healthcare", "green"]],
+  ["Movement & utilities", ["roads", "projectRoads", "drainage", "gates"]],
+  ["Amenities", ["facilities", "hospital", "school", "park", "other", "projectFacilities"]],
+  ["Decision intelligence", ["coverageGaps", "riskIntelligence", "populationHeat", "growthDemand", "recommendations", "serviceAreas"]],
+  ["Supporting context", ["future", "water", "environment", "proposals"]],
+];
+const layerLabels = Object.fromEntries([...existingLayerConfiguration, ...projectLayerConfiguration]);
 const zoneColors = {
   RESIDENTIAL_ZONE: "#5aa8ff",
   COMMERCIAL_ZONE: "#d895ff",
@@ -146,6 +182,7 @@ const gapIcon = (severity) =>
     iconAnchor: [15, 15],
     iconSize: [30, 30],
   });
+const riskIcon = (severity) => gapIcon(severity === "MEDIUM" ? "MODERATE" : severity);
 
 function projectPayload(project, boundary) {
   return {
@@ -305,7 +342,16 @@ function PlanningFeatures({ features, layers, mode, onMapClick }) {
     : undefined;
   return features.map((feature) => {
     const layer = zoneLayers[feature.feature_type];
+    if (landUseFeatureTypes.has(feature.feature_type) && !layers.landUse) return null;
     if (layer && !layers[layer]) return null;
+    if (["FACILITY_PROPOSAL", "COMMUNITY_FACILITY"].includes(feature.feature_type)) {
+      const category = String(feature.category ?? "other").toLowerCase();
+      if (category.includes("hospital") && !layers.hospital) return null;
+      if (category.includes("school") && !layers.school) return null;
+      if (category.includes("park") && !layers.park) return null;
+      if (category.includes("commercial") && !layers.commercial) return null;
+      if (category.includes("drainage") && !layers.drainage) return null;
+    }
     if (!layer && !layers.proposals) return null;
     if (feature.geometry.type === "Point") {
       const [longitude, latitude] = feature.geometry.coordinates;
@@ -435,10 +481,13 @@ function PlanningCanvasMap({
   measurePoints,
   mode,
   gapAnalysis,
+  growthPrediction,
   onMapClick,
   onSelectWard,
   onUpdateBoundaryVertex,
   recommendation,
+  recommendations,
+  riskDetection,
   roadPoints,
   selectedGap,
   selectedWard,
@@ -451,7 +500,7 @@ function PlanningCanvasMap({
   ];
   const wardLayers = {
     wards: false,
-    population: layers.population,
+    population: layers.populationHeat,
     pollution: layers.environment,
   };
   return (
@@ -558,6 +607,20 @@ function PlanningCanvasMap({
           <Tooltip>Project boundary</Tooltip>
         </Polygon>
       )}
+      {layers.growthDemand && growthPrediction?.scenarios?.length > 0 && boundary.length >= 3 && (
+        <Polygon
+          pathOptions={{ color: "#b79cf6", dashArray: "8 6", fillColor: "#8c6ee8", fillOpacity: 0.12, weight: 3 }}
+          positions={boundary}
+        >
+          <Popup>
+            <b>{growthPrediction.planning_horizon}-year growth scenario</b>
+            <br />
+            {Number(growthPrediction.projected_population).toLocaleString()} residents · {growthPrediction.confidence}
+            <br />
+            Scenario-based projection; not an official forecast.
+          </Popup>
+        </Polygon>
+      )}
       {mode === "EDIT_BOUNDARY" &&
         draftBoundary.map((position, index) => (
           <Marker
@@ -654,7 +717,28 @@ function PlanningCanvasMap({
           </Popup>
         </Marker>
       )}
-      {recommendation?.candidate_location && (
+      {layers.recommendations && recommendations
+        .filter((item) => item.candidate_location?.latitude && item.candidate_location?.longitude)
+        .map((item) => (
+          <Marker
+            icon={proposedIcon({
+              feature_type: "FACILITY_PROPOSAL",
+              category: String(item.project_type ?? item.category ?? "planning").toLowerCase(),
+              source: "citymind",
+            })}
+            key={`recommendation-${item.recommendation_id}`}
+            position={[item.candidate_location.latitude, item.candidate_location.longitude]}
+          >
+            <Popup>
+              <b>{item.candidate_location.label ?? item.title}</b>
+              <br />
+              CityMind recommendation · {item.recommendation_score}/100
+              <br />
+              {String(item.project_type ?? item.category).replaceAll("_", " ")} · {item.priority} priority
+            </Popup>
+          </Marker>
+        ))}
+      {layers.recommendations && recommendation?.candidate_location && (
         <Marker
           icon={proposedIcon({
             feature_type: "FACILITY_PROPOSAL",
@@ -699,6 +783,26 @@ function PlanningCanvasMap({
             </Popup>
           </Marker>
         ))}
+      {layers.riskIntelligence &&
+        riskDetection?.risks.flatMap((risk) => (risk.location ?? []).map((location) => (
+          <Marker
+            icon={riskIcon(risk.severity)}
+            key={`risk-${risk.risk_type}-${location.id}`}
+            position={[location.latitude, location.longitude]}
+          >
+            <Popup>
+              <b>{risk.label} · {risk.severity}</b>
+              <br />
+              {location.evidence}
+              <br />
+              Score {risk.score}/100 · {risk.confidence}
+              <br />
+              Source: {risk.data_source}
+              <br />
+              Data year: {risk.data_year ?? "unavailable"}
+            </Popup>
+          </Marker>
+        )))}
     </MapContainer>
   );
 }
@@ -768,6 +872,10 @@ export function ProjectGISCanvas({
   const [selectedWardId, setSelectedWardId] = useState(null);
   const [recommendation, setRecommendation] = useState(null);
   const [gapAnalysis, setGapAnalysis] = useState(initialGapAnalysis);
+  const [growthPrediction, setGrowthPrediction] = useState(null);
+  const [riskDetection, setRiskDetection] = useState(null);
+  const [feasibility, setFeasibility] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
   const [selectedGap, setSelectedGap] = useState(null);
   const [notice, setNotice] = useState("");
   const [baseLayer, setBaseLayer] = useState("streets");
@@ -827,6 +935,27 @@ export function ProjectGISCanvas({
       .catch(() => setNotice("Planning proposals could not be loaded."));
   }, [planningProject.id]);
   useEffect(() => {
+    let current = true;
+    const loadIntelligence = () => Promise.allSettled([
+      getProjectGrowthPrediction(planningProject.id),
+      getProjectRiskDetection(planningProject.id),
+      getProjectDevelopmentFeasibility(planningProject.id),
+      getProjectRecommendations(planningProject.id),
+    ]).then(([growthResult, riskResult, feasibilityResult, recommendationResult]) => {
+      if (!current) return;
+      setGrowthPrediction(growthResult.status === "fulfilled" ? growthResult.value : null);
+      setRiskDetection(riskResult.status === "fulfilled" ? riskResult.value : null);
+      setFeasibility(feasibilityResult.status === "fulfilled" ? feasibilityResult.value : null);
+      setRecommendations(recommendationResult.status === "fulfilled" ? recommendationResult.value.recommendations ?? [] : []);
+    });
+    loadIntelligence();
+    const refresh = (event) => {
+      if (Number(event.detail?.projectId) === Number(planningProject.id)) loadIntelligence();
+    };
+    window.addEventListener("citymind:plan-updated", refresh);
+    return () => { current = false; window.removeEventListener("citymind:plan-updated", refresh); };
+  }, [planningProject.id]);
+  useEffect(() => {
     const focus = (event) => {
       const candidate = event.detail?.candidate;
       setSelectedWardId(Number(event.detail?.wardId));
@@ -840,6 +969,26 @@ export function ProjectGISCanvas({
   }, [initialGapAnalysis]);
   useEffect(() => {
     if (!focusRequest) return;
+    if (focusRequest.type === "growth") {
+      setLayers((current) => ({ ...current, growthDemand: true }));
+      setSelectedGap(null);
+      setRecommendation(null);
+      return;
+    }
+    if (focusRequest.type === "risk") {
+      setLayers((current) => ({ ...current, riskIntelligence: true }));
+      setSelectedGap({
+        analysis_type: "RISK",
+        site: focusRequest.location?.label ?? "Risk evidence location",
+        category: focusRequest.risk?.label ?? "Risk intelligence",
+        reason: focusRequest.location?.evidence ?? focusRequest.risk?.score_basis,
+        confidence: focusRequest.risk?.confidence ?? "ESTIMATED",
+        coordinates: { latitude: focusRequest.location?.latitude, longitude: focusRequest.location?.longitude },
+      });
+      setRecommendation(null);
+      setSelectedWardId(null);
+      return;
+    }
     if (focusRequest.type === "gap") {
       setSelectedGap(focusRequest.area ?? null);
       setRecommendation(null);
@@ -1279,6 +1428,22 @@ export function ProjectGISCanvas({
       ...recommendationConstraints(selectedWard),
     ]),
   ];
+  const featureCounts = useMemo(() => ({
+    blocks: visibleFeatures.filter(({ feature_type: type }) => type === "BLOCK").length,
+    roads: visibleFeatures.filter(({ feature_type: type }) => ["ROAD_PROPOSAL", "PRIMARY_ROAD", "SECONDARY_ROAD", "LOCAL_ROAD"].includes(type)).length,
+    landUse: visibleFeatures.filter(({ feature_type: type }) => landUseFeatureTypes.has(type)).length,
+    facilities: visibleFeatures.filter(({ feature_type: type }) => ["FACILITY_PROPOSAL", "COMMUNITY_FACILITY"].includes(type)).length,
+  }), [visibleFeatures]);
+  const planningStack = [
+    ["Boundary", boundary.length >= 3, planningProject.area ? `${Number(planningProject.area.area_acres).toLocaleString()} ac` : "Missing"],
+    ["Blocks", featureCounts.blocks > 0, featureCounts.blocks],
+    ["Roads", featureCounts.roads > 0 || contextData.roads.length > 0, featureCounts.roads + contextData.roads.length],
+    ["Land use", featureCounts.landUse > 0, featureCounts.landUse],
+    ["Facilities", featureCounts.facilities > 0 || contextData.facilities.length > 0, featureCounts.facilities + contextData.facilities.length],
+    ["Risk", Boolean(riskDetection), riskDetection?.risks?.length ?? 0],
+    ["Growth", Boolean(growthPrediction), growthPrediction ? `${growthPrediction.planning_horizon}y` : "—"],
+    ["Recommendations", recommendations.length > 0, recommendations.length],
+  ];
 
   return (
     <article className="project-gis-canvas">
@@ -1317,6 +1482,13 @@ export function ProjectGISCanvas({
           </label>
         </div>
       </header>
+      <ol aria-label="Project planning stack" className="project-planning-stack">
+        {planningStack.map(([label, available, value], index) => (
+          <li className={available ? "available" : "pending"} key={label}>
+            <span>{index + 1}</span><div><strong>{label}</strong><small>{value}</small></div>
+          </li>
+        ))}
+      </ol>
       <div className="project-canvas-layout">
         <aside className="planning-toolbox">
           <div className="toolbox-title">
@@ -1594,13 +1766,14 @@ export function ProjectGISCanvas({
             </button>
           )}
           <div className="layer-groups">
-            <section>
-              <h3>Existing data</h3>
-              {existingLayerConfiguration.map(([key, label]) => (
+            {layerGroups.map(([group, keys]) => (
+              <section key={group}>
+                <h3>{group}</h3>
+                {keys.map((key) => (
                 <LayerToggle
                   active={layers[key]}
                   key={key}
-                  label={label}
+                  label={layerLabels[key]}
                   onClick={() =>
                     setLayers((current) => ({
                       ...current,
@@ -1609,23 +1782,8 @@ export function ProjectGISCanvas({
                   }
                 />
               ))}
-            </section>
-            <section>
-              <h3>Project layers</h3>
-              {projectLayerConfiguration.map(([key, label]) => (
-                <LayerToggle
-                  active={layers[key]}
-                  key={key}
-                  label={label}
-                  onClick={() =>
-                    setLayers((current) => ({
-                      ...current,
-                      [key]: !current[key],
-                    }))
-                  }
-                />
-              ))}
-            </section>
+              </section>
+            ))}
           </div>
         </aside>
         <section className="project-map-stage">
@@ -1637,6 +1795,7 @@ export function ProjectGISCanvas({
             draftFeaturePoints={draftFeaturePoints}
             features={visibleFeatures}
             gapAnalysis={visibleGapAnalysis}
+            growthPrediction={growthPrediction}
             layers={layers}
             locationEvaluation={locationEvaluation}
             measurePoints={measurePoints}
@@ -1651,6 +1810,8 @@ export function ProjectGISCanvas({
               )
             }
             recommendation={recommendation}
+            recommendations={recommendations}
+            riskDetection={riskDetection}
             roadPoints={roadPoints}
             selectedGap={selectedGap}
             selectedWard={selectedWard}
@@ -1672,6 +1833,8 @@ export function ProjectGISCanvas({
               <i className="gap" />
               Coverage gap
             </span>
+            {layers.riskIntelligence && <span><i className="risk" />Risk evidence</span>}
+            {layers.growthDemand && <span><i className="growth" />Growth scenario</span>}
           </div>
           {mode && (
             <div className="active-map-tool">
@@ -1687,7 +1850,7 @@ export function ProjectGISCanvas({
           )}
           {selectedGap && (
             <div className="selected-gap-overlay">
-              <span>{selectedGap.confidence} COVERAGE GAP</span>
+              <span>{selectedGap.confidence} {selectedGap.analysis_type === "RISK" ? "RISK EVIDENCE" : "COVERAGE GAP"}</span>
               <strong>
                 {selectedGap.site} · {selectedGap.category}
               </strong>
@@ -1696,6 +1859,17 @@ export function ProjectGISCanvas({
           )}
         </section>
         <aside className="planning-context-panel">
+          <section className="map-intelligence-summary">
+            <p className="eyebrow">Live site intelligence</p>
+            <div className="map-readiness-score"><strong>{feasibility?.planning_readiness?.score ?? "—"}</strong><span>/100 readiness</span></div>
+            <dl>
+              <div><dt>Infrastructure gap</dt><dd>{feasibility?.site_overview?.infrastructure_gap_percent == null ? "Unavailable" : `${feasibility.site_overview.infrastructure_gap_percent}%`}</dd></div>
+              <div><dt>Available-evidence risk</dt><dd>{String(feasibility?.site_overview?.risk_level ?? "DATA_UNAVAILABLE").replaceAll("_", " ")}</dd></div>
+              <div><dt>Growth horizon</dt><dd>{growthPrediction ? `${growthPrediction.planning_horizon} years` : "Unavailable"}</dd></div>
+              <div><dt>Saved recommendations</dt><dd>{recommendations.length}</dd></div>
+            </dl>
+            <small>Preliminary decision support. Professional and regulatory verification is required.</small>
+          </section>
           <section>
             <p className="eyebrow">Project context</p>
             <h3>{planningProject.name}</h3>

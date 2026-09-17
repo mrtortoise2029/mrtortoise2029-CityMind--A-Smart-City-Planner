@@ -14,10 +14,10 @@ test('opens an existing planning project and launches project creation', async (
   const user = userEvent.setup();
   const onOpen = vi.fn();
   render(<MyPlanningProjects cities={[{ id: 1, name: 'Dhaka', latitude: 23.78, longitude: 90.4 }]} error="" loading={false} onDelete={vi.fn()} onOpen={onOpen} onSave={vi.fn()} projects={[project]} />);
-  expect(screen.getByRole('heading', { name: 'My Planning Projects' })).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: /Create New Planning Project/ }));
+  expect(screen.getByRole('heading', { name: 'My Development Projects' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /Assess New Site/ }));
   expect(screen.getByRole('dialog', { name: 'Create planning project' })).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Close project wizard' }));
-  await user.click(screen.getByRole('button', { name: /Open workspace/ }));
+  await user.click(screen.getByRole('button', { name: /Open feasibility/ }));
   expect(onOpen).toHaveBeenCalledWith(project);
 });

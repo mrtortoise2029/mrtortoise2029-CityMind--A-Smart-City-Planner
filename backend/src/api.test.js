@@ -42,6 +42,7 @@ describe('project planning intelligence APIs', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(response.status).toBe(200);
     expect(response.body.data.project_id).toBe(projectId);
+    expect(response.body.data.current.year).toBe(0);
     expect(Math.max(...response.body.data.scenarios.map(({ year }) => year)))
       .toBeLessThanOrEqual(response.body.data.planning_horizon);
     expect(response.body.data.methodology.official_forecast).toBe(false);
@@ -58,13 +59,30 @@ describe('project planning intelligence APIs', () => {
     ]));
   });
 
+  test('returns a transparent preliminary development feasibility assessment', async () => {
+    const response = await request(app)
+      .get(`/api/planning-projects/${projectId}/development-feasibility`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(response.status).toBe(200);
+    expect(response.body.data.project_id).toBe(projectId);
+    expect(response.body.data.assessment_type).toBe('PRELIMINARY_DEVELOPMENT_FEASIBILITY');
+    expect(response.body.data.planning_readiness).toEqual(expect.objectContaining({
+      score: expect.any(Number), factors: expect.any(Array),
+    }));
+    expect(response.body.data.planning_readiness.methodology).toMatch(/weighted supported evidence/i);
+    expect(response.body.data.decision_notice).toMatch(/professional and regulatory verification/i);
+  });
+
   test('aggregates a project report and does not synthesize a budget result', async () => {
     const response = await request(app)
       .get(`/api/planning-projects/${projectId}/report`)
       .set('Authorization', `Bearer ${token}`);
     expect(response.status).toBe(200);
     expect(response.body.data.project_id).toBe(projectId);
+    expect(response.body.data.title).toMatch(/Preliminary Urban Development Assessment/);
+    expect(response.body.data.assessment_notice).toMatch(/regulatory verification/i);
     expect(response.body.data.growth_prediction.status).toBe('READY');
+    expect(response.body.data.development_feasibility.status).toBe('READY');
     expect(['READY', 'UNAVAILABLE']).toContain(response.body.data.budget_information.status);
     if (response.body.data.budget_information.status === 'UNAVAILABLE') {
       expect(response.body.data.budget_information.reason).toMatch(/No existing saved/);

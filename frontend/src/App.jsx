@@ -21,11 +21,12 @@ import { ProjectAssetView } from './components/ProjectAssetView.jsx';
 import { ProjectBlockHealthDashboard } from './components/ProjectBlockHealthDashboard.jsx';
 import { GrowthPredictionView } from './components/GrowthPredictionView.jsx';
 import { RiskDetectionView } from './components/RiskDetectionView.jsx';
+import { DevelopmentFeasibilityView } from './components/DevelopmentFeasibilityView.jsx';
 
 function CityMindWorkspace({ onLogout, user }) {
   const [cities, setCities] = useState([]);
   const [cityId, setCityId] = useState(1);
-  const [active, setActive] = useState('overview');
+  const [active, setActive] = useState('gis');
   const [projects, setProjects] = useState([]);
   const [projectsState, setProjectsState] = useState({ loading: true, error: '' });
   const [planningProject, setPlanningProject] = useState(null);
@@ -83,7 +84,7 @@ function CityMindWorkspace({ onLogout, user }) {
     setProjectGapAnalysis(null);
     setRecommendationResult(null);
     setMapFocus(null);
-    setActive('overview');
+    setActive('gis');
     window.scrollTo({ top: 0 });
   };
   const saveProject = async (projectId, payload) => {
@@ -126,20 +127,20 @@ function CityMindWorkspace({ onLogout, user }) {
         {data && <>
           <ProjectMetrics dashboard={data} gapAnalysis={projectGapAnalysis} project={planningProject} />
           <section className="workspace-active-view" id={active}>
-            {active === 'overview' && <ProjectOverview dashboard={data} gapAnalysis={projectGapAnalysis} onNavigate={navigate} project={planningProject} recommendationResult={recommendationResult} />}
+            {active === 'overview' && <><DevelopmentFeasibilityView onNavigate={navigate} project={planningProject} /><ProjectOverview dashboard={data} gapAnalysis={projectGapAnalysis} onNavigate={navigate} project={planningProject} recommendationResult={recommendationResult} /></>}
             {active === 'gis' && <ProjectGISCanvas focusRequest={mapFocus} gapAnalysis={projectGapAnalysis} mapData={data.map} onUpdateProject={updateActiveProject} planningProject={planningProject} />}
             {['blocks', 'roads', 'landuse', 'facilities'].includes(active) && <ProjectAssetView module={active} onNavigate={navigate} project={planningProject} />}
             {active === 'gaps' && <UrbanGapAnalysis initialAnalysis={projectGapAnalysis} onAnalysis={setProjectGapAnalysis} planningProject={planningProject} planningProjectId={planningProject.id} />}
             {active === 'recommendations' && <SmartRecommendationEngine cityId={cityId} initialResult={recommendationResult} onResult={setRecommendationResult} planningProject={planningProject} planningProjectId={planningProject.id} />}
             {active === 'health' && <ProjectBlockHealthDashboard onNavigate={navigate} planningProject={planningProject} />}
-            {active === 'growth' && <GrowthPredictionView project={planningProject} />}
-            {active === 'risks' && <RiskDetectionView project={planningProject} />}
+            {active === 'growth' && <GrowthPredictionView onOpenMap={() => { setMapFocus({ type: 'growth', key: Date.now() }); navigate('gis'); }} project={planningProject} />}
+            {active === 'risks' && <RiskDetectionView onOpenMap={(risk, location) => { setMapFocus({ type: 'risk', risk, location, key: Date.now() }); navigate('gis'); }} project={planningProject} />}
             {active === 'future' && <FuturePlanningView dashboard={data} project={planningProject} />}
             {active === 'budget' && <BudgetWorkspaceView project={planningProject} />}
             {active === 'reports' && <ReportsWorkspaceView onExport={exportReport} onPrint={() => window.print()} project={planningProject} />}
           </section>
         </>}
-        <footer>CityMind Planning Workspace · Evidence informs options; the planner decides.</footer>
+        <footer>CityMind Development Feasibility · Preliminary evidence informs investigation; qualified professionals decide.</footer>
       </main>
       {editingProject && <PlanningProjectWizard cities={cities} onCancel={() => setEditingProject(false)} onSave={editActiveProject} project={planningProject} />}
     </div>

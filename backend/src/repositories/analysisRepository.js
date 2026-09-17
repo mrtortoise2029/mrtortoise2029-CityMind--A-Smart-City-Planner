@@ -57,6 +57,7 @@ export async function findWardAnalysisInput(wardId) {
     pool.execute(`
       SELECT w.id, w.city_id, w.name, w.ward_code, w.area_sq_km,
              COALESCE(pd.population, 0) AS population,
+             pd.year AS data_year,
              pd.population_density AS population_density,
              COALESCE(pd.growth_rate, 0) AS growth_rate
       FROM wards w

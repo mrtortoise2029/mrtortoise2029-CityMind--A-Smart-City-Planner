@@ -20,11 +20,12 @@ describe('calculateGrowthPrediction', () => {
     const result = calculateGrowthPrediction({ project: {
       id: 9, project_type: 'EXISTING_AREA', planning_horizon: 5,
       current_population: 10_000, current_households: 2_500, area,
-    }, referenceGrowthRate: 2, referenceCount: 3 });
+    }, referenceGrowthRate: 2, referenceCount: 3, referenceDataYears: [2025] });
     expect(result.scenarios).toHaveLength(1);
     expect(result.scenarios[0].population).toBe(11_041);
     expect(result.annual_growth_rate).toBe(2);
     expect(result.data_sources[1].records).toBe(3);
+    expect(result.data_sources[1].data_year).toBe(2025);
   });
 
   test('labels a flat scenario when historical reference data is missing', () => {
