@@ -1,6 +1,6 @@
 import {
   Activity, BarChart3, Building2, CalendarRange, FileText, HeartPulse, Layers3, Map, MapPinned,
-  Pencil, PieChart, Printer, Route, Sparkles, WalletCards,
+  Pencil, PieChart, Printer, Route, ShieldAlert, Sparkles, TrendingUp, WalletCards,
 } from 'lucide-react';
 
 const navigation = [
@@ -13,6 +13,8 @@ const navigation = [
   ['gaps', Activity, 'Gap Analysis'],
   ['recommendations', Sparkles, 'Recommendations'],
   ['health', HeartPulse, 'Urban Health'],
+  ['growth', TrendingUp, 'Growth Prediction'],
+  ['risks', ShieldAlert, 'Risk Detection'],
   ['future', BarChart3, 'Future Planning'],
   ['budget', WalletCards, 'Budget'],
   ['reports', FileText, 'Reports'],

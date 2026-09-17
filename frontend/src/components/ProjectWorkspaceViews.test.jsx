@@ -2,10 +2,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 import { ProjectWorkspaceHeader } from './ProjectWorkspaceHeader.jsx';
-import { BudgetWorkspaceView, FuturePlanningView, ProjectMetrics, ProjectOverview } from './ProjectWorkspaceViews.jsx';
-import { simulateProjectBudget } from '../api/client.js';
+import { BudgetWorkspaceView, FuturePlanningView, ProjectMetrics, ProjectOverview, ReportsWorkspaceView } from './ProjectWorkspaceViews.jsx';
+import { getProjectReport, simulateProjectBudget } from '../api/client.js';
 
-vi.mock('../api/client.js', () => ({ simulateProjectBudget: vi.fn() }));
+vi.mock('../api/client.js', () => ({ getProjectReport: vi.fn(), simulateProjectBudget: vi.fn() }));
 
 vi.mock('react-leaflet', () => ({
   CircleMarker: ({ children }) => <>{children}</>,
@@ -95,4 +95,27 @@ test('budget workspace runs and labels a saved planning-assumption scenario', as
   expect(simulateProjectBudget).toHaveBeenCalledWith(1, expect.objectContaining({ scenarioType: 'BALANCED', saveScenario: true }));
   expect((await screen.findAllByText('BDT 100,000,000')).length).toBeGreaterThan(0);
   expect(screen.getByText('PLANNING_ASSUMPTION')).toBeInTheDocument();
+});
+
+test('report view prints ready evidence and keeps missing budget data unavailable', async () => {
+  const onPrint = vi.fn();
+  getProjectReport.mockResolvedValue({
+    generated_at: '2026-09-17T00:00:00.000Z', data_notice: 'Simulations are not official forecasts.',
+    project_overview: { status: 'READY', data: { ...project, area_acres: 500, population: { expected: 85000, expected_data_type: 'PLANNER_DEFINED' } } },
+    gis_assets: { status: 'READY', data: { counts: {} } },
+    gap_analysis: { status: 'READY', data: { priority_areas: [] } },
+    urban_health: { status: 'UNAVAILABLE', reason: 'No blocks available.' },
+    recommendations: { status: 'UNAVAILABLE', reason: 'No project recommendations have been generated.' },
+    growth_prediction: { status: 'READY', data: { projection_label: 'Scenario-based projection', confidence: 'PLANNING_ASSUMPTION', scenarios: [], assumptions: [], data_sources: [] } },
+    risk_detection: { status: 'READY', data: { risks: [], unavailable_risks: [] } },
+    future_planning: { status: 'READY', data: { phases: [] } },
+    budget_information: { status: 'UNAVAILABLE', reason: 'No existing saved Budget Optimizer result is available.' },
+    ai_summary: { status: 'UNAVAILABLE', reason: 'Gemini is not configured.' },
+  });
+  const user = userEvent.setup();
+  render(<ReportsWorkspaceView onExport={vi.fn()} onPrint={onPrint} project={project} />);
+  expect(await screen.findByText('CityMind planning report')).toBeInTheDocument();
+  expect(screen.getByText('Existing budget result').closest('section')).toHaveTextContent('Unavailable');
+  await user.click(screen.getByRole('button', { name: 'Print View' }));
+  expect(onPrint).toHaveBeenCalledOnce();
 });

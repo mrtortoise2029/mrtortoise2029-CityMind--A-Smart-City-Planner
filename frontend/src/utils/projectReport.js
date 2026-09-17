@@ -9,7 +9,7 @@ export function createProjectReportPayload({ gapAnalysis, project, recommendatio
 }
 
 export function downloadProjectReport(input) {
-  const report = createProjectReportPayload(input);
+  const report = input.reportData ?? createProjectReportPayload(input);
   const filename = `${input.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-citymind-report.json`;
   const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

@@ -37,6 +37,9 @@ export const createPlanningFeature = (projectId, input) => api.post(`/planning-p
 export const updatePlanningFeature = (projectId, featureId, input) => api.put(`/planning-projects/${projectId}/features/${featureId}`, input).then(({ data }) => data.data);
 export const deletePlanningFeature = (projectId, featureId) => api.delete(`/planning-projects/${projectId}/features/${featureId}`).then(({ data }) => data.data);
 export const getProjectGapAnalysis = (projectId, benchmarkScale = 1) => api.get(`/planning-projects/${projectId}/gap-analysis`, { params: { benchmarkScale } }).then(({ data }) => data.data);
+export const getProjectGrowthPrediction = (projectId) => api.get(`/planning-projects/${projectId}/growth-prediction`).then(({ data }) => data.data);
+export const getProjectRiskDetection = (projectId) => api.get(`/planning-projects/${projectId}/risk-detection`).then(({ data }) => data.data);
+export const getProjectReport = (projectId) => api.get(`/planning-projects/${projectId}/report`).then(({ data }) => data.data);
 export const getProjectBlockAnalysis = (projectId) => api.get(`/planning-projects/${projectId}/block-analysis`).then(({ data }) => data.data);
 export const simulateProjectBlockHealth = (projectId, input) => api.post(`/planning-projects/${projectId}/health-simulation`, input).then(({ data }) => data.data);
 export const getProjectValidation = (projectId) => api.get(`/planning-projects/${projectId}/validation`).then(({ data }) => data.data);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import {
   createPlanningProject, deletePlanningProject, getCities, getPlanningProjects,
-  getProjectGapAnalysis, updatePlanningProject, getAuthToken, getCurrentUser, setAuthToken,
+  getProjectGapAnalysis, getProjectReport, updatePlanningProject, getAuthToken, getCurrentUser, setAuthToken,
 } from './api/client.js';
 import { useCityDashboard } from './hooks/useCityDashboard.js';
 import { UrbanGapAnalysis } from './components/UrbanGapAnalysis.jsx';
@@ -19,6 +19,8 @@ import { downloadProjectReport } from './utils/projectReport.js';
 import { LoginScreen } from './components/LoginScreen.jsx';
 import { ProjectAssetView } from './components/ProjectAssetView.jsx';
 import { ProjectBlockHealthDashboard } from './components/ProjectBlockHealthDashboard.jsx';
+import { GrowthPredictionView } from './components/GrowthPredictionView.jsx';
+import { RiskDetectionView } from './components/RiskDetectionView.jsx';
 
 function CityMindWorkspace({ onLogout, user }) {
   const [cities, setCities] = useState([]);
@@ -106,8 +108,9 @@ function CityMindWorkspace({ onLogout, user }) {
     await updateActiveProject(payload);
     setEditingProject(false);
   };
-  const exportReport = () => {
-    downloadProjectReport({ gapAnalysis: projectGapAnalysis, project: planningProject, recommendationResult });
+  const exportReport = async () => {
+    const reportData = await getProjectReport(planningProject.id);
+    downloadProjectReport({ project: planningProject, reportData });
   };
 
   if (!planningProject) {
@@ -129,9 +132,11 @@ function CityMindWorkspace({ onLogout, user }) {
             {active === 'gaps' && <UrbanGapAnalysis initialAnalysis={projectGapAnalysis} onAnalysis={setProjectGapAnalysis} planningProject={planningProject} planningProjectId={planningProject.id} />}
             {active === 'recommendations' && <SmartRecommendationEngine cityId={cityId} initialResult={recommendationResult} onResult={setRecommendationResult} planningProject={planningProject} planningProjectId={planningProject.id} />}
             {active === 'health' && <ProjectBlockHealthDashboard onNavigate={navigate} planningProject={planningProject} />}
+            {active === 'growth' && <GrowthPredictionView project={planningProject} />}
+            {active === 'risks' && <RiskDetectionView project={planningProject} />}
             {active === 'future' && <FuturePlanningView dashboard={data} project={planningProject} />}
             {active === 'budget' && <BudgetWorkspaceView project={planningProject} />}
-            {active === 'reports' && <ReportsWorkspaceView gapAnalysis={projectGapAnalysis} onExport={exportReport} onPrint={() => window.print()} project={planningProject} recommendationResult={recommendationResult} />}
+            {active === 'reports' && <ReportsWorkspaceView onExport={exportReport} onPrint={() => window.print()} project={planningProject} />}
           </section>
         </>}
         <footer>CityMind Planning Workspace · Evidence informs options; the planner decides.</footer>

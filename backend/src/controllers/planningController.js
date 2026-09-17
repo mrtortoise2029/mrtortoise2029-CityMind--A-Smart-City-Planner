@@ -6,6 +6,9 @@ import * as projectBlockAnalysisService from '../services/projectBlockAnalysisSe
 import * as projectValidationService from '../services/projectValidationService.js';
 import * as locationSuitabilityService from '../services/locationSuitabilityService.js';
 import * as projectDeliveryService from '../services/projectDeliveryService.js';
+import * as projectGrowthService from '../services/projectGrowthService.js';
+import * as projectRiskService from '../services/projectRiskService.js';
+import * as projectReportService from '../services/projectReportService.js';
 import { sendSuccess } from '../utils/apiResponse.js';
 
 export async function listPlanningProjects(req, res, next) {
@@ -148,6 +151,21 @@ export async function getProjectBlockAnalysis(req, res, next) {
       req.user.id,
     ));
   } catch (error) { next(error); }
+}
+
+export async function getGrowthPrediction(req, res, next) {
+  try { sendSuccess(res, await projectGrowthService.getGrowthPrediction(req.validated.params.projectId, req.user.id)); }
+  catch (error) { next(error); }
+}
+
+export async function getRiskDetection(req, res, next) {
+  try { sendSuccess(res, await projectRiskService.getRiskDetection(req.validated.params.projectId, req.user.id)); }
+  catch (error) { next(error); }
+}
+
+export async function getProjectReport(req, res, next) {
+  try { sendSuccess(res, await projectReportService.getProjectReport(req.validated.params.projectId, req.user.id)); }
+  catch (error) { next(error); }
 }
 
 export async function simulateProjectBlockHealth(req, res, next) {
