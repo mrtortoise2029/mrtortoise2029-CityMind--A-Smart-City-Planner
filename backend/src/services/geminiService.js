@@ -18,3 +18,18 @@ export async function enhanceRecommendationSummary(city, recommendations) {
   return body.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
 }
 
+export async function explainProjectReport(project, evidence) {
+  if (!env.geminiApiKey) return null;
+  const prompt = `You are an urban-planning report writer. Explain the supplied deterministic CityMind results for ${project.name} in no more than 140 words. Do not calculate new scores, invent facts, imply statutory approval, or present scenarios as official forecasts. Distinguish unavailable data. Return plain text only.\n${JSON.stringify(evidence)}`;
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${env.geminiApiKey}`,
+    {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.15, maxOutputTokens: 220 } }),
+      signal: AbortSignal.timeout(8000),
+    },
+  );
+  if (!response.ok) throw new Error(`Gemini request failed with ${response.status}`);
+  const body = await response.json();
+  return body.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
+}

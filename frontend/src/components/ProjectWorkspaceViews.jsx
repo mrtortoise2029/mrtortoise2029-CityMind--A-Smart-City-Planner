@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CheckCircle2,
   CircleDollarSign, FileJson, FileText, Layers3, MapPin, Printer, Route, Sparkles,
-  Target, Users,
+  ShieldAlert, Target, TrendingUp, Users,
 } from 'lucide-react';
 import { CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { geoJSONToPositions } from '../utils/projectGeometry.js';
 import { isPointInProjectContext } from '../utils/projectContext.js';
-import { simulateProjectBudget } from '../api/client.js';
+import { getProjectReport, simulateProjectBudget } from '../api/client.js';
 
 const number = (value) => Number(value ?? 0).toLocaleString();
 const planningPopulation = (project) => project.project_type === 'EXISTING_AREA'
@@ -156,16 +156,49 @@ export function BudgetWorkspaceView({ project }) {
   );
 }
 
-export function ReportsWorkspaceView({ gapAnalysis, onExport, onPrint, project, recommendationResult }) {
+export function ReportsWorkspaceView({ onExport, onPrint, project }) {
+  const [report, setReport] = useState(null);
+  const [state, setState] = useState({ loading: true, error: '' });
+  useEffect(() => {
+    let current = true;
+    getProjectReport(project.id)
+      .then((result) => { if (current) { setReport(result); setState({ loading: false, error: '' }); } })
+      .catch((error) => { if (current) setState({ loading: false, error: error.response?.data?.error?.message ?? 'Report evidence is unavailable.' }); });
+    return () => { current = false; };
+  }, [project.id]);
+  const readiness = report ? [
+    ['Project information', FileText, report.project_overview],
+    ['Boundary & GIS', Layers3, report.gis_assets],
+    ['Gap analysis', Route, report.gap_analysis],
+    ['Recommendations', Sparkles, report.recommendations],
+    ['Urban health', CheckCircle2, report.urban_health],
+    ['Growth prediction', TrendingUp, report.growth_prediction],
+    ['Risk detection', ShieldAlert, report.risk_detection],
+    ['Future planning', CalendarClock, report.future_planning],
+    ['Existing budget result', CircleDollarSign, report.budget_information],
+    ['AI explanation', Sparkles, report.ai_summary],
+  ] : [];
+  const overview = report?.project_overview?.data;
+  const growth = report?.growth_prediction?.data;
+  const risks = report?.risk_detection?.data;
+  const gaps = report?.gap_analysis?.data;
+  const recommendations = report?.recommendations?.data?.recommendations ?? [];
+  const phases = report?.future_planning?.data?.phases ?? [];
+  const budgets = report?.budget_information?.data ?? [];
   return (
     <article className="reports-workspace-view">
-      <header><div><p className="eyebrow">Project evidence package</p><h2>Reports</h2><p>Export the currently available project facts and deterministic analysis results.</p></div><div><button onClick={onExport} type="button"><FileJson size={14} />Export JSON</button><button className="primary" onClick={onPrint} type="button"><Printer size={14} />Print View</button></div></header>
-      <div className="report-readiness-grid">
-        <section><FileText size={19} /><div><span>Project brief</span><strong>Ready</strong><small>Identity, boundary and planning parameters</small></div></section>
-        <section><Layers3 size={19} /><div><span>Coverage gap report</span><strong>{gapAnalysis ? 'Ready' : 'Loading'}</strong><small>Deterministic service benchmarks</small></div></section>
-        <section><Sparkles size={19} /><div><span>Candidate assessment</span><strong>{recommendationResult ? 'Ready' : 'Not generated'}</strong><small>Run Recommendations to include ranked options</small></div></section>
-        <section><Route size={19} /><div><span>GIS planning context</span><strong>{project.area ? 'Ready' : 'Boundary required'}</strong><small>Saved project boundary and mapped context</small></div></section>
-      </div>
+      <header><div><p className="eyebrow">Project evidence package</p><h2>Reports</h2><p>Project-specific facts, provenance, deterministic analysis, and clearly labeled scenarios.</p></div><div><button disabled={!report} onClick={onExport} type="button"><FileJson size={14} />Export Report</button><button className="primary" disabled={!report} onClick={onPrint} type="button"><Printer size={14} />Print View</button></div></header>
+      {state.loading && <div className="report-loading"><span className="loader" /><p>Aggregating project evidence…</p></div>}
+      {state.error && <div className="report-error"><AlertTriangle /><p>{state.error}</p></div>}
+      {report && <><section className="report-cover"><span>CityMind planning report</span><h3>{project.name}</h3><p>{String(project.project_type).replaceAll('_', ' ')} · {project.planning_horizon}-year horizon · Generated {new Date(report.generated_at).toLocaleDateString()}</p><small>{report.data_notice}</small></section><div className="report-readiness-grid">{readiness.map(([label, Icon, section]) => <section key={label}><Icon size={19} /><div><span>{label}</span><strong className={section.status === 'READY' ? 'ready' : 'unavailable'}>{section.status === 'READY' ? 'Ready' : 'Unavailable'}</strong><small>{section.status === 'READY' ? 'Included in this project report' : section.reason}</small></div></section>)}</div><div className="print-report-body">
+        <section><h3>1. Project Overview</h3><dl className="report-facts"><div><dt>Project type</dt><dd>{overview.project_type.replaceAll('_', ' ')}</dd></div><div><dt>Area</dt><dd>{number(overview.area_acres)} acres</dd></div><div><dt>Planning horizon</dt><dd>{overview.planning_horizon} years</dd></div><div><dt>Population</dt><dd>{number(overview.population.current ?? overview.population.expected)} · {overview.population.current ? overview.population.current_data_type : overview.population.expected_data_type}</dd></div></dl><p>{overview.description}</p></section>
+        <section><h3>2. Growth Prediction</h3>{growth ? <><p>{growth.projection_label} · {growth.confidence}. This is not an official forecast.</p><table><thead><tr><th>Horizon</th><th>Population</th><th>Households</th><th>Label</th></tr></thead><tbody>{growth.scenarios.map((scenario) => <tr key={scenario.year}><td>{scenario.year} years</td><td>{number(scenario.population)}</td><td>{number(scenario.households)}</td><td>{scenario.data_type}</td></tr>)}</tbody></table></> : <p>Data unavailable.</p>}</section>
+        <section><h3>3. Risk Detection</h3>{risks?.risks?.length ? <table><thead><tr><th>Risk</th><th>Severity</th><th>Score</th><th>Evidence</th></tr></thead><tbody>{risks.risks.map((risk) => <tr key={risk.risk_type}><td>{risk.label}</td><td>{risk.severity}</td><td>{risk.score}/100</td><td>{risk.evidence.missing} {risk.evidence.unit} missing</td></tr>)}</tbody></table> : <p>No supported risk score is available.</p>}<p>{risks?.unavailable_risks?.map(({ risk_type }) => risk_type.replaceAll('_', ' ')).join(', ')}: data unavailable.</p></section>
+        <section><h3>4. Infrastructure Gaps & Recommendations</h3>{gaps ? <table><thead><tr><th>Priority</th><th>Category</th><th>Gap</th><th>Missing</th></tr></thead><tbody>{gaps.priority_areas.slice(0, 8).map((item) => <tr key={item.key}><td>{item.rank}</td><td>{item.category}</td><td>{item.gap_percent}%</td><td>{item.missing} {item.unit}</td></tr>)}</tbody></table> : <p>Gap analysis unavailable.</p>}{recommendations.length ? <ol>{recommendations.slice(0, 8).map((item) => <li key={item.recommendation_id}>{item.title} — score {item.recommendation_score}/100 ({item.priority})</li>)}</ol> : <p>No project recommendations have been generated.</p>}</section>
+        <section><h3>5. Development Phases & Existing Budget Information</h3>{phases.length ? <ol>{phases.map((phase) => <li key={phase.id}>{phase.name}: years {phase.start_year}–{phase.end_year} ({phase.status})</li>)}</ol> : <p>No development phases are saved.</p>}{budgets.length ? <p>{budgets.length} existing saved Budget Optimizer scenario{budgets.length === 1 ? '' : 's'} included. No budget calculation was performed by this report.</p> : <p>No existing saved Budget Optimizer result is available.</p>}</section>
+        <section><h3>6. Assumptions & Data Provenance</h3>{growth?.assumptions?.map((item) => <p key={item}>{item}</p>)}{growth?.data_sources?.map((item) => <p key={item.dataset}><b>{item.dataset}:</b> {item.source ?? 'Data unavailable'} ({item.data_type})</p>)}</section>
+        <section><h3>7. AI Explanation</h3><p>{report.ai_summary.data?.text ?? report.ai_summary.reason}</p></section>
+      </div></>}
     </article>
   );
 }

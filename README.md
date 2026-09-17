@@ -201,6 +201,9 @@ DELETE /api/planning-projects/:projectId/features/:featureId
 
 GET    /api/planning-projects/:projectId/gap-analysis
 GET    /api/planning-projects/:projectId/block-analysis
+GET    /api/planning-projects/:projectId/growth-prediction
+GET    /api/planning-projects/:projectId/risk-detection
+GET    /api/planning-projects/:projectId/report
 POST   /api/planning-projects/:projectId/health-simulation
 GET    /api/planning-projects/:projectId/validation
 
