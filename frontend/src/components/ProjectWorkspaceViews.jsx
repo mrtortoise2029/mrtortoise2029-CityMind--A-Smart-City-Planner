@@ -1,11 +1,11 @@
-
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CheckCircle2,
+  AlertTriangle, ArrowRight, BarChart3, Building2, CalendarClock, CheckCircle2, Clock3,
   CircleDollarSign, FileJson, FileText, Layers3, MapPin, Printer, Route, Sparkles,
   ShieldAlert, Target, TrendingUp, Users,
 } from 'lucide-react';
 import { CircleMarker, MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { geoJSONToPositions } from '../utils/projectGeometry.js';
 import { isPointInProjectContext } from '../utils/projectContext.js';
 import { getProjectReport, simulateProjectBudget } from '../api/client.js';
@@ -132,27 +132,305 @@ export function FuturePlanningView({ dashboard, project }) {
 }
 
 export function BudgetWorkspaceView({ project }) {
-  const [availableBudget, setAvailableBudget] = useState(250000000);
+  const [availableBudget, setAvailableBudget] = useState(500000000);
   const [scenarioType, setScenarioType] = useState('BALANCED');
+  const [scenarioName, setScenarioName] = useState('Balanced Development Plan');
   const [result, setResult] = useState(null);
   const [state, setState] = useState({ loading: false, error: '' });
+
   const run = async (event) => {
-    event.preventDefault(); setState({ loading: true, error: '' });
+    event.preventDefault();
+    setState({ loading: true, error: '' });
     try {
-      setResult(await simulateProjectBudget(project.id, {
-        availableBudget: Number(availableBudget), currency: 'BDT', scenarioType, saveScenario: true,
-      }));
+      const response = await simulateProjectBudget(project.id, {
+        availableBudget: Number(availableBudget),
+        currency: 'BDT',
+        scenarioType,
+        scenarioName,
+        saveScenario: true,
+      });
+      setResult(response);
       setState({ loading: false, error: '' });
     } catch (error) {
-      setState({ loading: false, error: error.response?.data?.error?.message ?? 'Budget simulation failed.' });
+      setState({
+        loading: false,
+        error: error.response?.data?.error?.message ?? 'Budget optimization failed.',
+      });
     }
   };
+
+  const allocations = result?.sector_allocations ?? [];
+  const optimizer = result?.optimizer_summary;
+  const allocatedBudget = Number(optimizer?.allocated_budget ?? 0);
+  const totalBudget = Number(optimizer?.total_budget ?? result?.available_budget ?? availableBudget);
+  const unallocatedBudget = Number(optimizer?.unallocated_budget ?? Math.max(totalBudget - allocatedBudget, 0));
+  const allocatedPercent = totalBudget > 0 ? (allocatedBudget / totalBudget) * 100 : 0;
+
+  const chartData = allocations
+    .filter((item) => Number(item.allocated_amount) > 0)
+    .map((item) => ({
+      name: item.label,
+      value: Number(item.allocated_amount),
+      percentage: allocatedBudget > 0 ? (Number(item.allocated_amount) / allocatedBudget) * 100 : 0,
+    }));
+
+  const chartColors = ['#60a5fa', '#4ade80', '#fb923c', '#fb7185', '#c084fc', '#fde047', '#2dd4bf'];
+  const criticalCount = allocations.filter((item) => item.priority === 'CRITICAL').length;
+  const fullyFundedCount = allocations.filter((item) => Number(item.funding_coverage_percent) >= 100).length;
+
   return (
-    <article className="budget-workspace-view">
-      <header><div><p className="eyebrow">Project budget simulation</p><h2>Compare delivery packages within a planning budget.</h2><p>All costs are clearly labeled planning assumptions until verified local rates are supplied.</p></div><CircleDollarSign size={28} /></header>
-      <form onSubmit={run}><label><span>Available budget (BDT)</span><input min="1" onChange={(event) => setAvailableBudget(event.target.value)} required type="number" value={availableBudget} /></label><label><span>Scenario strategy</span><select onChange={(event) => setScenarioType(event.target.value)} value={scenarioType}><option value="MINIMUM_COST">Minimum Cost</option><option value="BALANCED">Balanced</option><option value="MAXIMUM_IMPACT">Maximum Impact</option></select></label><button disabled={state.loading} type="submit">{state.loading ? 'Simulating…' : 'Run Budget Simulation'}</button></form>
+    <article className="budget-dashboard">
+      <section className="budget-control-panel">
+        <div>
+          <p className="eyebrow">Smart Budget Optimizer</p>
+          <h2>Plan development within your available budget.</h2>
+          <p>CityMind converts project-specific infrastructure gaps into an explainable financial allocation scenario.</p>
+        </div>
+        <form onSubmit={run}>
+          <label>
+            Available Budget (BDT)
+            <input min="1" required type="number" value={availableBudget}
+              onChange={(event) => setAvailableBudget(event.target.value)} />
+          </label>
+          <label>
+            Optimization Goal
+            <select value={scenarioType} onChange={(event) => setScenarioType(event.target.value)}>
+              <option value="BALANCED">Balanced Development</option>
+              <option value="MAXIMUM_IMPACT">Maximum Impact</option>
+              <option value="MINIMUM_COST">Minimum Cost</option>
+            </select>
+          </label>
+          <label>
+            Scenario Name
+            <input minLength="3" maxLength="120" value={scenarioName}
+              onChange={(event) => setScenarioName(event.target.value)} />
+          </label>
+          <button disabled={state.loading} type="submit">
+            {state.loading ? 'Optimizing…' : 'Optimize Budget'}
+          </button>
+        </form>
+      </section>
+
       {state.error && <p className="budget-error">{state.error}</p>}
-      {result && <><section className="budget-summary"><div><span>Allocated</span><strong>BDT {number(result.summary.allocated)}</strong></div><div><span>Remaining</span><strong>BDT {number(result.summary.remaining)}</strong></div><div><span>Funded packages</span><strong>{result.summary.funded_packages}</strong></div><div><span>Deferred</span><strong>{result.summary.deferred_packages}</strong></div></section><div className="budget-package-grid"><section><h3>Included in scenario</h3>{result.selected.length ? result.selected.map((item) => <article key={item.category}><div><strong>{item.label}</strong><span>{item.units} planned unit{item.units === 1 ? '' : 's'} · {item.priority}</span></div><b>BDT {number(item.estimated_cost)}</b></article>) : <p>No complete intervention package fits this budget.</p>}</section><section><h3>Deferred packages</h3>{result.deferred.length ? result.deferred.map((item) => <article key={item.category}><div><strong>{item.label}</strong><span>{item.reason}</span></div><b>BDT {number(item.estimated_cost)}</b></article>) : <p>All evaluated packages fit this scenario.</p>}</section></div><aside><AlertTriangle size={16} /><p>{result.warning} <b>{result.confidence}</b></p></aside></>}
+
+      {result && (
+        <>
+          <section className="budget-result-title">
+            <div>
+              <p className="eyebrow">Optimized Scenario</p>
+              <h2>{result.scenario_name}</h2>
+              <p>Allocation is based on project-specific service gaps and missing infrastructure.</p>
+            </div>
+            <span className="budget-simulated">{result.simulation_label ?? 'SIMULATED'}</span>
+          </section>
+
+          <section className="budget-glance-grid">
+            <article className="budget-total-card">
+              <span>Total Budget</span>
+              <h2>BDT {number(totalBudget)}</h2>
+              <div className="budget-progress">
+                <i style={{ width: `${Math.min(allocatedPercent, 100)}%` }} />
+              </div>
+              <div className="budget-total-details">
+                <p>
+                  <span>Allocated</span>
+                  <strong>BDT {number(allocatedBudget)}</strong>
+                  <small>{allocatedPercent.toFixed(1)}% of budget</small>
+                </p>
+                <p>
+                  <span>Unallocated</span>
+                  <strong>BDT {number(unallocatedBudget)}</strong>
+                  <small>{Math.max(0, 100 - allocatedPercent).toFixed(1)}% buffer</small>
+                </p>
+              </div>
+            </article>
+
+            <article className="budget-chart-card">
+              <div><span>Budget Distribution</span><strong>Sector allocation</strong></div>
+              <div className="budget-chart-layout">
+                <div className="budget-donut">
+                  <ResponsiveContainer width="100%" height={190}>
+                    <PieChart>
+                      <Pie data={chartData} dataKey="value" nameKey="name"
+                        innerRadius={55} outerRadius={78} paddingAngle={2}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip formatter={(value) => [`BDT ${number(value)}`, 'Allocation']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="budget-donut-center">
+                    <small>Allocated</small><strong>BDT</strong>
+                    <span>{(allocatedBudget / 1000000).toFixed(1)}M</span>
+                  </div>
+                </div>
+                <div className="budget-chart-legend">
+                  {chartData.map((item, index) => (
+                    <div key={item.name}>
+                      <i style={{ background: chartColors[index % chartColors.length] }} />
+                      <span>{item.name}</span><strong>{item.percentage.toFixed(1)}%</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+
+            <article className="budget-impact-card">
+              <div><TrendingUp size={21} /><p><span>Expected Impact</span><strong>{optimizer?.average_expected_impact_percent ?? 0}%</strong></p></div>
+              <div><Layers3 size={21} /><p><span>Sectors Evaluated</span><strong>{allocations.length}</strong></p></div>
+              <div><CheckCircle2 size={21} /><p><span>Fully Funded</span><strong>{fullyFundedCount}/{allocations.length}</strong></p></div>
+              <div><Target size={21} /><p><span>Critical Priorities</span><strong>{criticalCount}</strong></p></div>
+            </article>
+          </section>
+
+          <section className="budget-sector-section">
+            <header>
+              <div><p className="eyebrow">Sector Allocation</p><h2>Recommended Budget Allocation</h2></div>
+              <span>{allocations.length} sectors evaluated</span>
+            </header>
+            <div className="budget-sector-grid">
+              {allocations.map((item, index) => {
+  const actualShare = allocatedBudget > 0
+    ? (Number(item.allocated_amount) / allocatedBudget) * 100
+    : 0;
+
+  const noCurrentGap = item.priority === 'NO_GAP';
+
+  return (
+    <article className="budget-sector-card" key={item.category}>
+      <header>
+        <div
+          className="budget-sector-icon"
+          style={{ color: chartColors[index % chartColors.length] }}
+        >
+          <CircleDollarSign size={22} />
+        </div>
+
+        <div>
+          <strong>{item.label}</strong>
+
+          <span>
+            {noCurrentGap
+              ? 'NO CURRENT GAP'
+              : `${item.priority} PRIORITY`}
+          </span>
+        </div>
+
+        <div className="budget-sector-money">
+          <strong>
+            BDT {number(item.allocated_amount)}
+          </strong>
+
+          <span>
+            {actualShare.toFixed(1)}% of allocation
+          </span>
+        </div>
+      </header>
+
+      <div className="budget-sector-progress">
+        <i
+          style={{
+            width: `${Math.min(
+              Number(item.funding_coverage_percent),
+              100
+            )}%`,
+            background:
+              chartColors[index % chartColors.length],
+          }}
+        />
+      </div>
+
+      <dl>
+        <div>
+          <dt>Need score</dt>
+          <dd>{item.need_score}/100</dd>
+        </div>
+
+        <div>
+          <dt>Required cost</dt>
+          <dd>
+            {noCurrentGap
+              ? 'Not required'
+              : `BDT ${number(item.required_cost)}`}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Funding coverage</dt>
+          <dd>
+            {noCurrentGap
+              ? 'Not required'
+              : `${item.funding_coverage_percent}%`}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Expected impact</dt>
+          <dd>
+            {noCurrentGap
+              ? 'No additional impact required'
+              : `+${item.expected_impact_percent}%`}
+          </dd>
+        </div>
+      </dl>
+
+      <p>{item.reason}</p>
+
+      <span className="budget-simulated small">
+        {noCurrentGap
+          ? 'NO FUNDING REQUIRED'
+          : 'SIMULATED IMPACT'}
+      </span>
+    </article>
+  );
+})}
+            </div>
+          </section>
+
+          <section className="budget-bottom-grid">
+            <article className="budget-why-card">
+              <header><Sparkles size={20} /><h3>Why this allocation?</h3></header>
+              <p>{result.methodology?.need_score}</p>
+              <p>{result.methodology?.allocation}</p>
+              {result.methodology?.impact && <p>{result.methodology.impact}</p>}
+              <div>
+                <span>✓ Focuses on infrastructure gaps</span>
+                <span>✓ Prioritizes higher-need sectors</span>
+                <span>✓ Respects the available budget</span>
+                <span>✓ Keeps the result explainable</span>
+              </div>
+            </article>
+
+            <article className="budget-funded-card">
+              <header><CheckCircle2 size={19} /><h3>Fully Funded Packages</h3></header>
+              {result.selected?.length ? result.selected.map((item) => (
+                <div key={item.category}>
+                  <span>● {item.label}</span><strong>BDT {number(item.estimated_cost)}</strong>
+                </div>
+              )) : <p>No complete package is fully funded.</p>}
+            </article>
+
+            <article className="budget-deferred-card">
+              <header><Clock3 size={19} /><h3>Deferred Packages</h3></header>
+              {result.deferred?.length ? result.deferred.map((item) => (
+                <div key={item.category}>
+                  <span>{item.label}</span><strong>BDT {number(item.estimated_cost)}</strong>
+                </div>
+              )) : (
+                <div className="budget-empty-state">
+                  <CheckCircle2 size={28} /><p>No packages deferred.</p>
+                </div>
+              )}
+            </article>
+          </section>
+
+          <aside className="budget-warning">
+            <AlertTriangle size={17} />
+            <span>{result.warning} <strong>{result.confidence}</strong></span>
+          </aside>
+        </>
+      )}
     </article>
   );
 }
