@@ -6,8 +6,6 @@ export function LoginScreen({ onAuthenticated }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({
     name: '',
-    email: import.meta.env.DEV ? 'planner@citymind.local' : '',
-    password: import.meta.env.DEV ? 'CityMindDemo123!' : '',
   });
   const [state, setState] = useState({ loading: false, error: '' });
 
