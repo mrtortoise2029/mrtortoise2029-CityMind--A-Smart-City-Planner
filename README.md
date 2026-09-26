@@ -62,6 +62,31 @@ The platform supports new developments, existing areas, redevelopment projects, 
 
 The numerical analysis and ranking logic is deterministic and runs in the backend. Gemini integration is optional and limited to explanations and planning summaries; it does not calculate scores or define database truth.
 
+## The main Features are: 
+
+GIS Planning – The planner can draw a project boundary and add blocks, roads, facilities, land-use zones, gates, etc. on the map.
+
+Urban Gap Analysis – It compares the existing services/infrastructure with the required demand and identifies gaps such as lack of healthcare, education, roads, parks, drainage, etc.
+
+Urban Health Score – It calculates an overall score based on factors like healthcare, education, mobility, environment, green space, infrastructure and accessibility.
+
+Smart Recommendation Engine – If a planner needs something like a hospital or school, the system generates and ranks candidate locations using population need, infrastructure gap, accessibility, future demand and existing coverage.
+
+Growth Prediction – It estimates future population/demand so that planning is not based only on the current situation.
+Risk Detection – It checks the available project evidence for supported planning risks and gives a risk level based on the available data.
+
+Exact Location Suitability – The planner can click a specific point on the map and check whether that exact location is suitable based on boundary, land use, population need, gaps, accessibility, coverage, future demand and constraints.
+
+Development Feasibility – It combines project evidence such as land area, population capacity, infrastructure gap, urban health and available risk information to give a preliminary planning-readiness assessment.
+Future Planning – The project can be divided into development phases and future scenarios, so the planner can decide what should be developed first and what can be done later.
+
+Budget & Reporting – Different budget scenarios such as Minimum Cost, Balanced and Maximum Impact can be simulated, and the project information can finally be exported as a report.
+
+## The overall flow is:
+
+GIS/project data → Gap Analysis → Urban Health + Growth → Recommendations → Location Suitability → Risk/Feasibility → Future Planning → Budget → Report.
+
+
 ## Technology
 
 ### Frontend
