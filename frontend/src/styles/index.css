@@ -777,6 +777,7 @@ footer { text-align:center;color:#3f5950;font-size:9px;padding:18px;letter-spaci
   grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
   margin-top: 20px;
+  
 }
 
 .budget-control-panel label {
@@ -786,8 +787,8 @@ footer { text-align:center;color:#3f5950;font-size:9px;padding:18px;letter-spaci
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .04em;
+  
 }
-
 .budget-control-panel input,
 .budget-control-panel select {
   min-height: 44px;
@@ -795,14 +796,21 @@ footer { text-align:center;color:#3f5950;font-size:9px;padding:18px;letter-spaci
   border: 1px solid rgba(110, 231, 183, .2);
   border-radius: 10px;
   font: inherit;
+   
 }
 
 .budget-control-panel button {
   grid-column: 1 / -1;
   min-height: 46px;
+  min-width: 200px;
+
+  border: 1px solid green 950;
   border-radius: 10px;
+
   cursor: pointer;
   font-weight: 800;
+  background-color: black;
+  color: white;
 }
 
 .budget-result-title {

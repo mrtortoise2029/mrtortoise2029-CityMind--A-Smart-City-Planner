@@ -201,12 +201,12 @@ export function BudgetWorkspaceView({ project }) {
         <form onSubmit={run}>
           <label>
             Available Budget (BDT)
-            <input min="1" required type="number" value={availableBudget}
+            <input classname="input-box" min="1" required type="number" value={availableBudget}
               onChange={(event) => setAvailableBudget(event.target.value)} />
           </label>
           <label>
             Optimization Goal
-            <select value={scenarioType} onChange={(event) => setScenarioType(event.target.value)}>
+            <select classname="input-box" value={scenarioType} onChange={(event) => setScenarioType(event.target.value)}>
               <option value="BALANCED">Balanced Development</option>
               <option value="MAXIMUM_IMPACT">Maximum Impact</option>
               <option value="MINIMUM_COST">Minimum Cost</option>
@@ -214,7 +214,7 @@ export function BudgetWorkspaceView({ project }) {
           </label>
           <label>
             Scenario Name
-            <input minLength="3" maxLength="120" value={scenarioName}
+            <input classname="input-box" minLength="3" maxLength="120" value={scenarioName}
               onChange={(event) => setScenarioName(event.target.value)} />
           </label>
           <button disabled={state.loading} type="submit">
