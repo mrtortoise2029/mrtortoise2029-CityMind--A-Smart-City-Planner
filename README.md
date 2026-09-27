@@ -106,6 +106,8 @@ GIS/project data → Gap Analysis → Urban Health + Growth → Recommendations 
 - JWT authentication
 - bcrypt password hashing
 - Jest and Supertest
+-Selenium IDE
+-Manual Testing
 
 ## Project structure
 
